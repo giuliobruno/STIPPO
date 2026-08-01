@@ -3,25 +3,79 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f3f1ec;
+  --paper-2: #ebe7df;
+  --ink: #141414;
+  --ink-muted: #5c5a56;
+  --line: #d9d4cb;
+  --surface: #fffcf7;
+  --accent: #1e3a5f;
+  --accent-soft: #e8eef5;
+  --ok: #2f5d50;
+  --danger: #8b3a3a;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #e8eef5 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #efe8dc 0%, transparent 50%),
+    var(--paper);
+  -webkit-font-smoothing: antialiased;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+@layer components {
+  .vm-shell {
+    @apply min-h-screen;
+  }
+
+  .vm-card {
+    @apply rounded-2xl border bg-[var(--surface)] border-[var(--line)] overflow-hidden transition;
+  }
+
+  .vm-card:hover {
+    border-color: #c4bdb0;
+  }
+
+  .vm-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition active:scale-[0.98];
+  }
+
+  .vm-btn-primary {
+    @apply vm-btn bg-[var(--accent)] text-white hover:bg-[#17304f];
+  }
+
+  .vm-btn-secondary {
+    @apply vm-btn bg-white border border-[var(--line)] text-[var(--ink)] hover:bg-[var(--paper-2)];
+  }
+
+  .vm-btn-ghost {
+    @apply vm-btn text-[var(--ink-muted)] hover:bg-black/5 hover:text-[var(--ink)];
+  }
+
+  .vm-input {
+    @apply w-full rounded-xl border border-[var(--line)] bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[var(--accent)];
+  }
+
+  .vm-input::placeholder {
+    color: var(--ink-muted);
+    opacity: 0.7;
+  }
+
+  .vm-input:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+  }
+
+  .vm-label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-[0.08em] text-[var(--ink-muted)];
+  }
+
+  .vm-chip {
+    @apply inline-flex items-center rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent)];
   }
 }

@@ -1,0 +1,10 @@
+packages:
+  - "."
+
+# pnpm 11 blocks packages younger than ~24h (supply-chain protection).
+# These three were published <24h ago and are pinned in our lockfile — allow them.
+# Remove this exclude in a day or two if you want the default policy fully on.
+minimumReleaseAgeExclude:
+  - openai
+  - "@capacitor/cli"
+  - "@capacitor/core"

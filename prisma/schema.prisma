@@ -1,0 +1,155 @@
+// Visual Memory AI — Hybrid Plan B schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  image         String?
+  plan          String    @default("free") // free | pro | team
+  memoryCount   Int       @default(0)
+
+  // Stripe
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String?
+  stripeStatus         String? // active | canceled | past_due | trialing | incomplete
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  projects Project[]
+  memories Memory[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  location    String?
+  clientName  String?
+  status      String   @default("active") // active | archived
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memories Memory[]
+
+  @@index([userId])
+}
+
+/// Core unit: image/file + voice annotation + AI understanding
+/// Hybrid Plan B: originals local by default; thumbnail + index sync across devices
+model Memory {
+  id     String @id @default(cuid())
+  userId String
+
+  // Display
+  title       String
+  description String?
+
+  // Media
+  mediaType      String // image | audio | document
+  originalKey    String // full-res (local-first)
+  thumbnailKey   String? // lightweight preview (synced / cross-device)
+  mimeType       String?
+  fileSize       Int?
+  storageBackend String  @default("local") // local | s3 | supabase | firebase
+
+  // Hybrid sync
+  // local_only = original on this device only
+  // indexed = thumbnail + understanding in cloud (Plan B default)
+  // full_synced = original also uploaded (Pro opt-in)
+  syncStatus          String  @default("indexed")
+  originalSyncEnabled Boolean @default(false)
+
+  // Voice
+  transcript   String?
+  audioKey     String?
+  intent       String?
+  rawVoiceNote String?
+
+  // AI structured understanding
+  aiSummary    String?
+  objectsJson  String @default("[]")
+  tagsJson     String @default("[]")
+  entitiesJson String @default("{}")
+  ocrText      String?
+
+  // Organization
+  projectId        String?
+  projectSuggested String?
+  location         String? // human label (city / site name)
+  source           String  @default("upload") // camera | upload | paste | voice | share | screenshot
+
+  // Geo (opt-in)
+  latitude       Float?
+  longitude      Float?
+  placeName      String? // reverse-geocoded or voice-derived approximate place
+  locationSource String? // gps | exif | voice | manual
+
+  // Search
+  embeddingJson String?
+  searchText    String?
+
+  // Processing
+  status       String @default("ready")
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([userId, projectId])
+  @@index([userId, status])
+  @@index([userId, syncStatus])
+}

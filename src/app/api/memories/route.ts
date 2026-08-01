@@ -1,0 +1,241 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getStorage } from "@/lib/storage";
+import { assertCanCreateMemory, requireUser } from "@/lib/session";
+import { processMemory } from "@/lib/ai/pipeline";
+import { parseJsonArray, parseJsonObject } from "@/lib/utils";
+import { isProPlan } from "@/lib/stripe";
+
+export async function GET(req: NextRequest) {
+  try {
+    const user = await requireUser();
+    const projectId = req.nextUrl.searchParams.get("projectId");
+    const memories = await prisma.memory.findMany({
+      where: {
+        userId: user.id,
+        ...(projectId ? { projectId } : {}),
+      },
+      include: { project: true },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+
+    const storage = getStorage();
+    return NextResponse.json({
+      memories: memories.map((m) =>
+        serializeMemory(m, storage.getPublicUrl.bind(storage))
+      ),
+    });
+  } catch (err) {
+    return handleErr(err);
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const user = await requireUser();
+    const dbUser = await assertCanCreateMemory(user.id);
+
+    const form = await req.formData();
+    const file = form.get("file") as File | null;
+    const thumbFile = form.get("thumbnail") as File | null;
+    const transcript = String(form.get("transcript") || "").trim();
+    const source = String(form.get("source") || "upload");
+    const projectId = String(form.get("projectId") || "") || null;
+    const voiceOnly = form.get("voiceOnly") === "true";
+    const syncOriginal = form.get("syncOriginal") === "true";
+    const latitude = parseOptionalFloat(form.get("latitude"));
+    const longitude = parseOptionalFloat(form.get("longitude"));
+    const placeName = String(form.get("placeName") || "").trim() || null;
+    const locationSource = String(form.get("locationSource") || "").trim() || null;
+
+    // Pro-only: sync full-res original across devices
+    const originalSyncEnabled = syncOriginal && isProPlan(dbUser);
+
+    if (!file && !transcript) {
+      return NextResponse.json(
+        { error: "Provide an image/file and/or a voice transcript." },
+        { status: 400 }
+      );
+    }
+
+    const storage = getStorage();
+    let originalKey = "";
+    let thumbnailKey: string | null = null;
+    let mimeType = "application/octet-stream";
+    let fileSize = 0;
+    let mediaType: "image" | "audio" | "document" = "image";
+    let imageBuffer: Buffer | undefined;
+
+    if (file) {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      mimeType = file.type || "application/octet-stream";
+      fileSize = buffer.length;
+      mediaType = mimeType.startsWith("image/")
+        ? "image"
+        : mimeType.startsWith("audio/")
+          ? "audio"
+          : "document";
+
+      const stored = await storage.put(user.id, buffer, {
+        filename: file.name || "capture",
+        mimeType,
+        folder: "originals",
+      });
+      originalKey = stored.key;
+      if (mediaType === "image") imageBuffer = buffer;
+    } else if (voiceOnly && transcript) {
+      mediaType = "audio";
+      originalKey = `voice:${Date.now()}`;
+    }
+
+    // Hybrid Plan B: always store a lightweight thumbnail when provided
+    if (thumbFile && mediaType === "image") {
+      const thumbBuf = Buffer.from(await thumbFile.arrayBuffer());
+      const thumb = await storage.put(user.id, thumbBuf, {
+        filename: "thumb.jpg",
+        mimeType: "image/jpeg",
+        folder: "thumbnails",
+      });
+      thumbnailKey = thumb.key;
+    } else if (mediaType === "image" && originalKey) {
+      thumbnailKey = originalKey;
+    }
+
+    const locationLabel =
+      placeName ||
+      (latitude != null && longitude != null
+        ? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+        : null);
+
+    const memory = await prisma.memory.create({
+      data: {
+        userId: user.id,
+        title: "Processing…",
+        description: null,
+        mediaType,
+        originalKey,
+        thumbnailKey,
+        mimeType,
+        fileSize,
+        storageBackend: process.env.STORAGE_BACKEND || "local",
+        syncStatus: originalSyncEnabled ? "full_synced" : "indexed",
+        originalSyncEnabled,
+        rawVoiceNote: transcript || null,
+        projectId,
+        source,
+        latitude: latitude ?? undefined,
+        longitude: longitude ?? undefined,
+        placeName: locationLabel,
+        locationSource: locationSource || undefined,
+        location: locationLabel,
+        status: "processing",
+      },
+    });
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { memoryCount: { increment: 1 } },
+    });
+
+    const processed = await processMemory({
+      memoryId: memory.id,
+      userId: user.id,
+      imageBuffer,
+      imageMime: mimeType.startsWith("image/") ? mimeType : undefined,
+      voiceTranscript: transcript || undefined,
+      placeHint: locationLabel || undefined,
+    });
+
+    return NextResponse.json({
+      memory: serializeMemory(
+        { ...processed, project: null },
+        storage.getPublicUrl.bind(storage)
+      ),
+    });
+  } catch (err) {
+    return handleErr(err);
+  }
+}
+
+function parseOptionalFloat(value: FormDataEntryValue | null): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function serializeMemory(
+  m: {
+    id: string;
+    title: string;
+    description: string | null;
+    mediaType: string;
+    originalKey: string;
+    thumbnailKey: string | null;
+    transcript: string | null;
+    aiSummary: string | null;
+    tagsJson: string;
+    objectsJson: string;
+    entitiesJson: string;
+    ocrText: string | null;
+    intent: string | null;
+    projectId: string | null;
+    projectSuggested: string | null;
+    source: string;
+    status: string;
+    createdAt: Date;
+    latitude?: number | null;
+    longitude?: number | null;
+    placeName?: string | null;
+    locationSource?: string | null;
+    syncStatus?: string;
+    project?: { id: string; name: string } | null;
+  },
+  urlFor: (key: string) => string
+) {
+  return {
+    id: m.id,
+    title: m.title,
+    description: m.description,
+    mediaType: m.mediaType,
+    imageUrl:
+      m.mediaType === "image" && (m.thumbnailKey || m.originalKey)
+        ? urlFor(m.thumbnailKey || m.originalKey)
+        : null,
+    transcript: m.transcript,
+    aiSummary: m.aiSummary,
+    tags: parseJsonArray(m.tagsJson),
+    objects: parseJsonArray(m.objectsJson),
+    entities: parseJsonObject(m.entitiesJson, {
+      materials: [],
+      people: [],
+      companies: [],
+      locations: [],
+      concepts: [],
+      projects: [],
+    }),
+    ocrText: m.ocrText,
+    intent: m.intent,
+    projectId: m.projectId,
+    projectName: m.project?.name ?? null,
+    projectSuggested: m.projectSuggested,
+    source: m.source,
+    status: m.status,
+    latitude: m.latitude ?? null,
+    longitude: m.longitude ?? null,
+    placeName: m.placeName ?? null,
+    locationSource: m.locationSource ?? null,
+    syncStatus: m.syncStatus ?? "indexed",
+    createdAt: m.createdAt.toISOString(),
+  };
+}
+
+function handleErr(err: unknown) {
+  const status = (err as { status?: number })?.status || 500;
+  const message = err instanceof Error ? err.message : "Server error";
+  if (status === 401) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  console.error(err);
+  return NextResponse.json({ error: message }, { status });
+}

@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Visual Memory AI
 
-## Getting Started
+**Project visual memory for architects & interior designers.**
 
-First, run the development server:
+Snap a detail. Speak the thought. Ask months later.
+
+> Hybrid Plan B: originals stay local by default. Thumbnail + understanding sync across devices. Full-res sync is a Pro opt-in.
+
+---
+
+## What's included
+
+| Area | Status |
+|---|---|
+| Email auth (+ optional Google) | ✅ |
+| Capture: camera / upload / paste screenshot | ✅ |
+| On-the-fly voice/text annotation (native STT) | ✅ |
+| GPS opt-in + EXIF GPS from site photos | ✅ |
+| Hybrid sync (thumbnail + index; full-res Pro) | ✅ |
+| Projects + AI suggest | ✅ |
+| Hybrid search | ✅ |
+| Stripe Pro checkout / portal / webhooks | ✅ |
+| PWA share_target + Capacitor scaffold | ✅ |
+| Free 100-memory gate | ✅ |
+
+---
+
+## Quick start
 
 ```bash
+cp .env.example .env
+npm install
+npx prisma db push
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 → signup → **Capture**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Try:
+1. Paste a screenshot (`Ctrl/Cmd+V`)
+2. Speak or type: `scala interessante ferro e vetro progetto Milano`
+3. Toggle location (EXIF or GPS)
+4. Save → Search for `ferro vetro Milano`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Real AI
+```
+OPENAI_API_KEY=sk-...
+```
 
-## Learn More
+### Stripe Pro
+1. Create a $15/mo Price in Stripe
+2. Set `STRIPE_SECRET_KEY`, `STRIPE_PRICE_PRO`, `STRIPE_WEBHOOK_SECRET`
+3. Forward webhooks: `stripe listen --forward-to localhost:3000/api/stripe/webhook`
+4. Open **/app/billing**
 
-To learn more about Next.js, take a look at the following resources:
+### Mobile (Capacitor)
+See [`docs/MOBILE.md`](docs/MOBILE.md)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npx cap add android
+npx cap sync
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Architecture (Plan B)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+Device capture (photo/screenshot + STT + optional GPS)
+        │
+        ├─ original  → local storage (default)
+        ├─ thumbnail → synced preview (all devices)
+        └─ AI index  → DB (title, tags, entities, embedding, geo)
+        │
+        ▼
+Any device: search + thumbnail preview
+Pro opt-in: sync full-resolution original
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Scripts
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Dev server |
+| `npm run build` | Production build |
+| `npm run db:push` | Sync Prisma schema |
+| `npm run db:studio` | Browse DB |
+
+---
+
+## Docs
+
+- [`docs/PRODUCT.md`](docs/PRODUCT.md) — product principles
+- [`docs/MOBILE.md`](docs/MOBILE.md) — Capacitor / share sheet
