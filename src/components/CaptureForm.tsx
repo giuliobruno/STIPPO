@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Camera,
   ClipboardPaste,
+  Crop,
   MapPin,
   Mic,
   MicOff,
@@ -12,14 +13,31 @@ import {
   X,
 } from "lucide-react";
 import { createThumbnail } from "@/lib/media/thumbnail";
+import { cropImageFile, type CropRect } from "@/lib/media/crop";
+import {
+  CLIP_MESSAGE_TYPE,
+  dataUrlToFile,
+  takePendingClip,
+  type PendingClip,
+} from "@/lib/media/clip-bridge";
 import {
   approximatePlaceLabel,
   readDeviceGps,
   readExifGps,
   type GeoPoint,
 } from "@/lib/media/geo";
+import { CropEditor } from "@/components/CropEditor";
 
 type Project = { id: string; name: string };
+
+type CaptureSource =
+  | "camera"
+  | "upload"
+  | "paste"
+  | "voice"
+  | "share"
+  | "screenshot"
+  | "extension";
 
 type SpeechRec = {
   lang: string;
@@ -49,9 +67,7 @@ export function CaptureForm() {
   const [file, setFile] = useState<File | null>(null);
   const [transcript, setTranscript] = useState("");
   const [listening, setListening] = useState(false);
-  const [source, setSource] = useState<
-    "camera" | "upload" | "paste" | "voice" | "share" | "screenshot"
-  >("upload");
+  const [source, setSource] = useState<CaptureSource>("upload");
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -61,17 +77,112 @@ export function CaptureForm() {
   const [geo, setGeo] = useState<GeoPoint | null>(null);
   const [syncOriginal, setSyncOriginal] = useState(false);
   const [isPro, setIsPro] = useState(false);
+  const [cropping, setCropping] = useState(false);
+  const [clipRect, setClipRect] = useState<CropRect | null>(null);
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [sourceTitle, setSourceTitle] = useState("");
   const recognitionRef = useRef<SpeechRec | null>(null);
+  const attachGpsRef = useRef(attachGps);
+  attachGpsRef.current = attachGps;
 
-  // Deep link / share target: /app/capture?note=...&source=share
+  const setImageFile = useCallback(
+    async (f: File, src: CaptureSource, opts?: { keepClipRect?: boolean }) => {
+      setFile(f);
+      setSource(src);
+      setPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(f);
+      });
+      if (!opts?.keepClipRect) setClipRect(null);
+      setError(null);
+
+      const exif = await readExifGps(f);
+      if (exif) {
+        setGeo({
+          ...exif,
+          placeName: approximatePlaceLabel(exif.latitude, exif.longitude),
+        });
+        return;
+      }
+      if (attachGpsRef.current) {
+        const device = await readDeviceGps();
+        if (device) {
+          setGeo({
+            ...device,
+            placeName: approximatePlaceLabel(device.latitude, device.longitude),
+          });
+        }
+      }
+    },
+    []
+  );
+
+  const ingestPendingClip = useCallback(
+    async (clip: PendingClip) => {
+      try {
+        const f = dataUrlToFile(
+          clip.dataUrl,
+          `clip-${Date.now()}.png`
+        );
+        await setImageFile(f, "extension");
+        if (clip.sourceUrl) setSourceUrl(clip.sourceUrl);
+        if (clip.sourceTitle) setSourceTitle(clip.sourceTitle);
+        if (clip.note) setTranscript((t) => t || clip.note || "");
+        if (clip.clipRect) setClipRect(clip.clipRect);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load clip");
+      }
+    },
+    [setImageFile]
+  );
+
+  // Deep link / share / extension: /app/capture?note=...&source=extension
   useEffect(() => {
     const note = searchParams.get("note") || searchParams.get("transcript");
     const src = searchParams.get("source");
+    const url = searchParams.get("sourceUrl");
+    const title = searchParams.get("sourceTitle");
     if (note) setTranscript(note);
-    if (src === "share" || src === "screenshot") {
+    if (
+      src === "share" ||
+      src === "screenshot" ||
+      src === "extension" ||
+      src === "paste" ||
+      src === "camera" ||
+      src === "upload"
+    ) {
       setSource(src);
     }
+    if (url) setSourceUrl(url);
+    if (title) setSourceTitle(title);
   }, [searchParams]);
+
+  // Chrome extension bridge (postMessage + IndexedDB fallback)
+  useEffect(() => {
+    let cancelled = false;
+
+    void takePendingClip().then((clip) => {
+      if (!cancelled && clip?.dataUrl) void ingestPendingClip(clip);
+    });
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== window) return;
+      const data = event.data;
+      if (!data || data.type !== CLIP_MESSAGE_TYPE || !data.dataUrl) return;
+      void ingestPendingClip({
+        dataUrl: data.dataUrl,
+        sourceUrl: data.sourceUrl,
+        sourceTitle: data.sourceTitle,
+        note: data.note,
+        clipRect: data.clipRect,
+      });
+    };
+    window.addEventListener("message", onMessage);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("message", onMessage);
+    };
+  }, [ingestPendingClip]);
 
   useEffect(() => {
     fetch("/api/projects")
@@ -87,35 +198,6 @@ export function CaptureForm() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     setSttSupported(Boolean(SR));
   }, []);
-
-  const setImageFile = useCallback(
-    async (f: File, src: typeof source) => {
-      setFile(f);
-      setSource(src);
-      setPreview(URL.createObjectURL(f));
-      setError(null);
-
-      // Prefer EXIF GPS from site photos; fall back to device GPS if enabled
-      const exif = await readExifGps(f);
-      if (exif) {
-        setGeo({
-          ...exif,
-          placeName: approximatePlaceLabel(exif.latitude, exif.longitude),
-        });
-        return;
-      }
-      if (attachGps) {
-        const device = await readDeviceGps();
-        if (device) {
-          setGeo({
-            ...device,
-            placeName: approximatePlaceLabel(device.latitude, device.longitude),
-          });
-        }
-      }
-    },
-    [attachGps]
-  );
 
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
@@ -148,6 +230,24 @@ export function CaptureForm() {
       ...device,
       placeName: approximatePlaceLabel(device.latitude, device.longitude),
     });
+  }
+
+  async function applyCrop(rect: Omit<CropRect, "imageWidth" | "imageHeight">) {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { file: cropped, rect: fullRect } = await cropImageFile(file, rect);
+      await setImageFile(cropped, source === "extension" ? "extension" : source, {
+        keepClipRect: true,
+      });
+      setClipRect(fullRect);
+      setCropping(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Crop failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function toggleListen() {
@@ -212,6 +312,9 @@ export function CaptureForm() {
       if (projectId) body.append("projectId", projectId);
       if (!file && transcript.trim()) body.append("voiceOnly", "true");
       if (syncOriginal) body.append("syncOriginal", "true");
+      if (sourceUrl.trim()) body.append("sourceUrl", sourceUrl.trim());
+      if (sourceTitle.trim()) body.append("sourceTitle", sourceTitle.trim());
+      if (clipRect) body.append("clipRect", JSON.stringify(clipRect));
 
       if (attachGps && geo) {
         body.append("latitude", String(geo.latitude));
@@ -233,193 +336,239 @@ export function CaptureForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mx-auto max-w-xl space-y-6">
-      <div className="space-y-2">
-        <h2 className="font-[family-name:var(--font-serif)] text-3xl">
-          Capture memory
-        </h2>
-        <p className="text-sm text-[var(--ink-muted)]">
-          Paste a screenshot, speak the thought — e.g. “scala interessante ferro e
-          vetro progetto Milano”. Thumbnail + understanding sync; originals stay local.
-        </p>
-      </div>
-
-      <div className="vm-card p-4">
-        {preview ? (
-          <div className="relative overflow-hidden rounded-xl">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={preview} alt="Preview" className="max-h-80 w-full object-cover" />
-            <button
-              type="button"
-              className="absolute right-3 top-3 rounded-full bg-black/60 p-2 text-white"
-              onClick={() => {
-                setPreview(null);
-                setFile(null);
-                setGeo(null);
-              }}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex aspect-[4/3] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper)] px-6 text-center">
-            <p className="font-[family-name:var(--font-serif)] text-xl">
-              Screenshot or site photo
-            </p>
-            <p className="mt-1 text-sm text-[var(--ink-muted)]">
-              Camera · upload · paste (Ctrl/Cmd+V) · share target
-            </p>
-          </div>
-        )}
-
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          <button
-            type="button"
-            className="vm-btn-secondary"
-            onClick={() => cameraRef.current?.click()}
-          >
-            <Camera className="h-4 w-4" />
-            Camera
-          </button>
-          <button
-            type="button"
-            className="vm-btn-secondary"
-            onClick={() => fileRef.current?.click()}
-          >
-            <Upload className="h-4 w-4" />
-            Upload
-          </button>
-          <button
-            type="button"
-            className="vm-btn-secondary"
-            onClick={() =>
-              setError("Paste a screenshot anywhere on this page (Ctrl/Cmd+V).")
-            }
-          >
-            <ClipboardPaste className="h-4 w-4" />
-            Paste
-          </button>
-        </div>
-        <input
-          ref={cameraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void setImageFile(f, "camera");
-          }}
+    <>
+      {cropping && preview ? (
+        <CropEditor
+          imageUrl={preview}
+          onCancel={() => setCropping(false)}
+          onApply={(rect) => void applyCrop(rect)}
         />
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*,application/pdf"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void setImageFile(f, "upload");
-          }}
-        />
-      </div>
-
-      <div className="vm-card space-y-3 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="vm-label mb-0">Annotate on the fly</p>
-            <p className="text-xs text-[var(--ink-muted)]">
-              Native STT {sttSupported ? "ready" : "unavailable — type instead"}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={toggleListen}
-            className={listening ? "vm-btn-primary" : "vm-btn-secondary"}
-          >
-            {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            {listening ? "Stop" : "Speak"}
-          </button>
-        </div>
-        <textarea
-          className="vm-input min-h-28 resize-y"
-          placeholder='e.g. "scala interessante ferro e vetro progetto Milano"'
-          value={transcript}
-          onChange={(e) => setTranscript(e.target.value)}
-        />
-      </div>
-
-      <div className="vm-card space-y-3 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="vm-label mb-0">Location</p>
-            <p className="text-xs text-[var(--ink-muted)]">
-              EXIF from site photos, or GPS when you save (opt-in). Screenshots rarely have EXIF.
-            </p>
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={attachGps}
-              onChange={(e) => setAttachGps(e.target.checked)}
-            />
-            Attach
-          </label>
-        </div>
-        {geo ? (
-          <p className="flex items-center gap-2 text-sm text-[var(--accent)]">
-            <MapPin className="h-4 w-4 shrink-0" />
-            {geo.placeName} · via {geo.locationSource}
-          </p>
-        ) : (
-          <button type="button" className="vm-btn-secondary" onClick={() => void refreshGps()}>
-            <MapPin className="h-4 w-4" />
-            Use current GPS
-          </button>
-        )}
-      </div>
-
-      <div>
-        <label className="vm-label" htmlFor="project">
-          Project (optional)
-        </label>
-        <select
-          id="project"
-          className="vm-input"
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-        >
-          <option value="">Auto-detect from voice</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <label className="flex items-start gap-3 text-sm text-[var(--ink-muted)]">
-        <input
-          type="checkbox"
-          className="mt-1"
-          checked={syncOriginal}
-          disabled={!isPro}
-          onChange={(e) => setSyncOriginal(e.target.checked)}
-        />
-        <span>
-          Sync full-resolution original to cloud (Pro)
-          {!isPro ? " — upgrade in Billing" : " — otherwise only thumbnail + index sync"}
-        </span>
-      </label>
-
-      {error ? (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-[var(--danger)]">
-          {error}
-        </p>
       ) : null}
 
-      <button type="submit" disabled={busy} className="vm-btn-primary w-full !py-3.5">
-        {busy ? "Understanding…" : "Save memory"}
-      </button>
-    </form>
+      <form onSubmit={onSubmit} className="mx-auto max-w-xl space-y-6">
+        <div className="space-y-2">
+          <h2 className="font-[family-name:var(--font-serif)] text-3xl">
+            Capture memory
+          </h2>
+          <p className="text-sm text-[var(--ink-muted)]">
+            Paste a screenshot, clip a region, speak the thought — e.g. “scala
+            interessante ferro e vetro progetto Milano”. Thumbnail + understanding
+            sync; originals stay local.
+          </p>
+        </div>
+
+        <div className="vm-card p-4">
+          {preview ? (
+            <div className="relative overflow-hidden rounded-xl">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={preview} alt="Preview" className="max-h-80 w-full object-cover" />
+              <button
+                type="button"
+                className="absolute right-3 top-3 rounded-full bg-black/60 p-2 text-white"
+                onClick={() => {
+                  if (preview) URL.revokeObjectURL(preview);
+                  setPreview(null);
+                  setFile(null);
+                  setGeo(null);
+                  setClipRect(null);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex aspect-[4/3] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper)] px-6 text-center">
+              <p className="font-[family-name:var(--font-serif)] text-xl">
+                Screenshot or site photo
+              </p>
+              <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                Camera · upload · paste · clip · Chrome extension
+              </p>
+            </div>
+          )}
+
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <button
+              type="button"
+              className="vm-btn-secondary"
+              onClick={() => cameraRef.current?.click()}
+            >
+              <Camera className="h-4 w-4" />
+              Camera
+            </button>
+            <button
+              type="button"
+              className="vm-btn-secondary"
+              onClick={() => fileRef.current?.click()}
+            >
+              <Upload className="h-4 w-4" />
+              Upload
+            </button>
+            <button
+              type="button"
+              className="vm-btn-secondary"
+              onClick={() =>
+                setError("Paste a screenshot anywhere on this page (Ctrl/Cmd+V).")
+              }
+            >
+              <ClipboardPaste className="h-4 w-4" />
+              Paste
+            </button>
+            <button
+              type="button"
+              className="vm-btn-secondary"
+              disabled={!file || !file.type.startsWith("image/")}
+              onClick={() => setCropping(true)}
+            >
+              <Crop className="h-4 w-4" />
+              Clip
+            </button>
+          </div>
+          {clipRect ? (
+            <p className="mt-2 text-xs text-[var(--ink-muted)]">
+              Clipped {Math.round(clipRect.width)}×{Math.round(clipRect.height)} from{" "}
+              {clipRect.imageWidth}×{clipRect.imageHeight}
+            </p>
+          ) : null}
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void setImageFile(f, "camera");
+            }}
+          />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,application/pdf"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void setImageFile(f, "upload");
+            }}
+          />
+        </div>
+
+        {(sourceUrl || source === "extension") && (
+          <div className="vm-card space-y-3 p-4">
+            <p className="vm-label mb-0">Source page</p>
+            <input
+              className="vm-input"
+              placeholder="Page title"
+              value={sourceTitle}
+              onChange={(e) => setSourceTitle(e.target.value)}
+            />
+            <input
+              className="vm-input"
+              placeholder="https://…"
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+            />
+          </div>
+        )}
+
+        <div className="vm-card space-y-3 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="vm-label mb-0">Annotate on the fly</p>
+              <p className="text-xs text-[var(--ink-muted)]">
+                Native STT {sttSupported ? "ready" : "unavailable — type instead"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={toggleListen}
+              className={listening ? "vm-btn-primary" : "vm-btn-secondary"}
+            >
+              {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              {listening ? "Stop" : "Speak"}
+            </button>
+          </div>
+          <textarea
+            className="vm-input min-h-28 resize-y"
+            placeholder='e.g. "scala interessante ferro e vetro progetto Milano"'
+            value={transcript}
+            onChange={(e) => setTranscript(e.target.value)}
+          />
+        </div>
+
+        <div className="vm-card space-y-3 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="vm-label mb-0">Location</p>
+              <p className="text-xs text-[var(--ink-muted)]">
+                EXIF from site photos, or GPS when you save (opt-in). Screenshots rarely have EXIF.
+              </p>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={attachGps}
+                onChange={(e) => setAttachGps(e.target.checked)}
+              />
+              Attach
+            </label>
+          </div>
+          {geo ? (
+            <p className="flex items-center gap-2 text-sm text-[var(--accent)]">
+              <MapPin className="h-4 w-4 shrink-0" />
+              {geo.placeName} · via {geo.locationSource}
+            </p>
+          ) : (
+            <button type="button" className="vm-btn-secondary" onClick={() => void refreshGps()}>
+              <MapPin className="h-4 w-4" />
+              Use current GPS
+            </button>
+          )}
+        </div>
+
+        <div>
+          <label className="vm-label" htmlFor="project">
+            Project (optional)
+          </label>
+          <select
+            id="project"
+            className="vm-input"
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+          >
+            <option value="">Auto-detect from voice</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <label className="flex items-start gap-3 text-sm text-[var(--ink-muted)]">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={syncOriginal}
+            disabled={!isPro}
+            onChange={(e) => setSyncOriginal(e.target.checked)}
+          />
+          <span>
+            Sync full-resolution original to cloud (Pro)
+            {!isPro ? " — upgrade in Billing" : " — otherwise only thumbnail + index sync"}
+          </span>
+        </label>
+
+        {error ? (
+          <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-[var(--danger)]">
+            {error}
+          </p>
+        ) : null}
+
+        <button type="submit" disabled={busy} className="vm-btn-primary w-full !py-3.5">
+          {busy ? "Understanding…" : "Save memory"}
+        </button>
+      </form>
+    </>
   );
 }

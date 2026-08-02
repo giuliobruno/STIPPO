@@ -14,6 +14,8 @@ Snap a detail. Speak the thought. Ask months later.
 |---|---|
 | Email auth (+ optional Google) | ✅ |
 | Capture: camera / upload / paste screenshot | ✅ |
+| In-app region clip (crop before save) | ✅ |
+| Chrome extension region clip → Capture | ✅ |
 | On-the-fly voice/text annotation (native STT) | ✅ |
 | GPS opt-in + EXIF GPS from site photos | ✅ |
 | Hybrid sync (thumbnail + index; full-res Pro) | ✅ |
@@ -94,3 +96,4 @@ Pro opt-in: sync full-resolution original
 
 - [`docs/PRODUCT.md`](docs/PRODUCT.md) — product principles
 - [`docs/MOBILE.md`](docs/MOBILE.md) — Capacitor / share sheet
+- [`extensions/chrome/README.md`](extensions/chrome/README.md) — Stippo Clip browser extension

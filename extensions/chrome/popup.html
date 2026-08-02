@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Stippo Clip</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #141414;
+        --muted: #5c5a56;
+        --accent: #1e3a5f;
+        --line: #e4e1da;
+        --paper: #f7f5f1;
+      }
+      body {
+        margin: 0;
+        width: 300px;
+        font: 13px/1.4 "Segoe UI", system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+      }
+      main {
+        padding: 14px;
+        display: grid;
+        gap: 12px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 650;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+      }
+      label {
+        display: grid;
+        gap: 4px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+      }
+      input {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font: inherit;
+        color: var(--ink);
+        background: #fff;
+      }
+      button {
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .secondary {
+        background: #fff;
+        border: 1px solid var(--line);
+        color: var(--ink);
+      }
+      .row {
+        display: grid;
+        gap: 8px;
+      }
+      .status {
+        min-height: 1.2em;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .status.error {
+        color: #b42318;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div>
+        <h1>Stippo Clip</h1>
+        <p>Select a region on the current page, then annotate in Stippo.</p>
+      </div>
+      <label>
+        App origin
+        <input id="origin" type="url" placeholder="http://localhost:3000" />
+      </label>
+      <div class="row">
+        <button id="clip" class="primary" type="button">Clip region</button>
+        <button id="save" class="secondary" type="button">Save origin</button>
+      </div>
+      <p class="status" id="status">Shortcut: Alt+Shift+S</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

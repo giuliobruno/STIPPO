@@ -67,6 +67,22 @@ export default async function MemoryDetailPage({ params }: Props) {
         <p className="text-[var(--ink-muted)]">
           {memory.aiSummary || memory.description}
         </p>
+        {memory.sourceUrl ? (
+          <p className="text-sm">
+            <span className="text-[var(--ink-muted)]">Source · </span>
+            <a
+              href={memory.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[var(--accent)] underline-offset-2 hover:underline"
+            >
+              {memory.sourceTitle || memory.sourceUrl}
+            </a>
+            {memory.source === "extension" ? (
+              <span className="ml-2 text-xs text-[var(--ink-muted)]">via clip</span>
+            ) : null}
+          </p>
+        ) : null}
       </div>
 
         {memory.transcript ? (
