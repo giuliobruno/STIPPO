@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { PasswordInput } from "@/components/PasswordInput";
 
 export function SignupForm() {
   const router = useRouter();
@@ -66,24 +67,20 @@ export function SignupForm() {
           className="vm-input"
           type="email"
           required
+          autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
       </div>
-      <div>
-        <label className="vm-label" htmlFor="password">
-          Password
-        </label>
-        <input
-          id="password"
-          className="vm-input"
-          type="password"
-          minLength={8}
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </div>
+      <PasswordInput
+        id="password"
+        label="Password"
+        value={password}
+        onValueChange={setPassword}
+        minLength={8}
+        required
+        autoComplete="new-password"
+      />
       {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
       <button className="vm-btn-primary w-full" disabled={busy}>
         {busy ? "Creating…" : "Create account"}

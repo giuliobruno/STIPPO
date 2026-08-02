@@ -1,11 +1,7 @@
 import Link from "next/link";
-import { LoginForm } from "@/components/LoginForm";
+import { ForgotPasswordForm } from "@/components/ForgotPasswordForm";
 
-export default function LoginPage({
-  searchParams,
-}: {
-  searchParams: { reset?: string };
-}) {
+export default function ForgotPasswordPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 py-12">
       <Link
@@ -14,11 +10,11 @@ export default function LoginPage({
       >
         Visual Memory
       </Link>
-      <h1 className="font-[family-name:var(--font-serif)] text-4xl">Welcome back</h1>
+      <h1 className="font-[family-name:var(--font-serif)] text-4xl">Forgot password</h1>
       <p className="mt-2 mb-8 text-sm text-[var(--ink-muted)]">
-        Sign in to your project reference brain.
+        Replace your password — the old one cannot be recovered or shown.
       </p>
-      <LoginForm resetOk={searchParams.reset === "1"} />
+      <ForgotPasswordForm />
     </div>
   );
 }

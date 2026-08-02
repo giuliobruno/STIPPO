@@ -11,6 +11,7 @@ import {
   Shield,
   Trash2,
 } from "lucide-react";
+import { PasswordInput } from "@/components/PasswordInput";
 
 type Account = {
   id: string;
@@ -228,50 +229,32 @@ export function AccountPanel() {
         <section className="vm-card space-y-4 p-6">
           <h3 className="font-[family-name:var(--font-serif)] text-xl">Password</h3>
           <form onSubmit={changePassword} className="space-y-3">
-            <div>
-              <label className="vm-label" htmlFor="current-password">
-                Current password
-              </label>
-              <input
-                id="current-password"
-                type="password"
-                className="vm-input"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
-            </div>
-            <div>
-              <label className="vm-label" htmlFor="new-password">
-                New password
-              </label>
-              <input
-                id="new-password"
-                type="password"
-                className="vm-input"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
-            </div>
-            <div>
-              <label className="vm-label" htmlFor="confirm-password">
-                Confirm new password
-              </label>
-              <input
-                id="confirm-password"
-                type="password"
-                className="vm-input"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
-            </div>
+            <PasswordInput
+              id="current-password"
+              label="Current password"
+              value={currentPassword}
+              onValueChange={setCurrentPassword}
+              required
+              autoComplete="current-password"
+            />
+            <PasswordInput
+              id="new-password"
+              label="New password"
+              value={newPassword}
+              onValueChange={setNewPassword}
+              required
+              minLength={8}
+              autoComplete="new-password"
+            />
+            <PasswordInput
+              id="confirm-password"
+              label="Confirm new password"
+              value={confirmPassword}
+              onValueChange={setConfirmPassword}
+              required
+              minLength={8}
+              autoComplete="new-password"
+            />
             <button type="submit" className="vm-btn-secondary" disabled={busy}>
               Update password
             </button>
@@ -399,19 +382,13 @@ export function AccountPanel() {
               />
             </div>
             {account?.hasPassword ? (
-              <div>
-                <label className="vm-label" htmlFor="delete-password">
-                  Password
-                </label>
-                <input
-                  id="delete-password"
-                  className="vm-input"
-                  type="password"
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-              </div>
+              <PasswordInput
+                id="delete-password"
+                label="Password"
+                value={deletePassword}
+                onValueChange={setDeletePassword}
+                autoComplete="current-password"
+              />
             ) : null}
             <div>
               <label className="vm-label" htmlFor="delete-typed">

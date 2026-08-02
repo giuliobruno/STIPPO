@@ -25,7 +25,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>At rest (credentials):</strong> passwords are stored only as strong
-          one-way hashes (bcrypt). We cannot recover your plaintext password.
+          one-way hashes (bcrypt). We cannot recover your plaintext password; you can
+          replace it via Forgot password on the sign-in page.
         </p>
         <p>
           <strong>Originals by default:</strong> full-resolution files remain on the
