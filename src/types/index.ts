@@ -1,7 +1,23 @@
 export type PlanTier = "free" | "pro" | "team";
 
 export type MediaType = "image" | "audio" | "document";
-export type MemorySource = "camera" | "upload" | "paste" | "voice";
+export type MemorySource =
+  | "camera"
+  | "upload"
+  | "paste"
+  | "voice"
+  | "share"
+  | "screenshot"
+  | "extension";
+
+export type ClipRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  imageWidth: number;
+  imageHeight: number;
+};
 export type MemoryStatus = "processing" | "ready" | "failed";
 export type IntentType =
   | "remember"

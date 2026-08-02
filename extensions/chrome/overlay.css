@@ -1,0 +1,50 @@
+#stippo-clip-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+#stippo-clip-root .stippo-clip-banner {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(20, 20, 20, 0.88);
+  color: #fff;
+  font-size: 13px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+}
+
+#stippo-clip-root .stippo-clip-cancel {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: #fff;
+  border-radius: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+#stippo-clip-root .stippo-clip-shade {
+  position: fixed;
+  inset: 0;
+  cursor: crosshair;
+  background: rgba(0, 0, 0, 0.28);
+  z-index: 1;
+}
+
+#stippo-clip-root .stippo-clip-box {
+  position: fixed;
+  z-index: 2;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  box-sizing: border-box;
+}

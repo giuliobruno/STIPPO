@@ -126,7 +126,12 @@ model Memory {
   projectId        String?
   projectSuggested String?
   location         String? // human label (city / site name)
-  source           String  @default("upload") // camera | upload | paste | voice | share | screenshot
+  source           String  @default("upload") // camera | upload | paste | voice | share | screenshot | extension
+
+  // Provenance for browser clips / web references
+  sourceUrl    String?
+  sourceTitle  String?
+  clipRectJson String? // { x, y, width, height, imageWidth, imageHeight }
 
   // Geo (opt-in)
   latitude       Float?

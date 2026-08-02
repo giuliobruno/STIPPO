@@ -28,12 +28,16 @@ Secondary later: engineers, consultants, creative studios
 
 ### Out
 - Team collaboration
-- Browser extension
 - Multi-turn chat assistant
 - Heavy DOC/PDF parsing
 - Timeline UI
 - ElevenLabs / premium TTS
 - Full Camera Roll indexing (needs native wrapper)
+
+### Clip tools (Phase 2 scaffold)
+- In-app region crop on Capture (`Clip` button)
+- Chrome extension region clip → Capture (`extensions/chrome`)
+- Memory provenance: `sourceUrl`, `sourceTitle`, `clipRectJson`
 
 ## Data model (essence)
 
@@ -52,6 +56,8 @@ Media bytes ≠ database. DB stores understanding + pointers + optional GPS.
 ## Capture patterns
 
 - Screenshot paste / share → annotate: “scala ferro e vetro progetto Milano”
+- In-app clip: crop a detail from photo/screenshot before save
+- Browser clip: Chrome extension region select → Capture with page URL/title
 - Site photo → EXIF GPS when present
 - Opt-in device GPS at save time
 - Screenshots usually lack EXIF → spoken place or GPS toggle

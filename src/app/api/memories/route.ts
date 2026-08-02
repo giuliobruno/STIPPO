@@ -48,6 +48,10 @@ export async function POST(req: NextRequest) {
     const longitude = parseOptionalFloat(form.get("longitude"));
     const placeName = String(form.get("placeName") || "").trim() || null;
     const locationSource = String(form.get("locationSource") || "").trim() || null;
+    const sourceUrl = String(form.get("sourceUrl") || "").trim() || null;
+    const sourceTitle = String(form.get("sourceTitle") || "").trim() || null;
+    const clipRectRaw = String(form.get("clipRect") || "").trim();
+    const clipRectJson = sanitizeClipRectJson(clipRectRaw);
 
     // Pro-only: sync full-res original across devices
     const originalSyncEnabled = syncOriginal && isProPlan(dbUser);
@@ -124,6 +128,9 @@ export async function POST(req: NextRequest) {
         rawVoiceNote: transcript || null,
         projectId,
         source,
+        sourceUrl,
+        sourceTitle,
+        clipRectJson,
         latitude: latitude ?? undefined,
         longitude: longitude ?? undefined,
         placeName: locationLabel,
@@ -182,6 +189,9 @@ function serializeMemory(
     projectId: string | null;
     projectSuggested: string | null;
     source: string;
+    sourceUrl?: string | null;
+    sourceTitle?: string | null;
+    clipRectJson?: string | null;
     status: string;
     createdAt: Date;
     latitude?: number | null;
@@ -220,6 +230,9 @@ function serializeMemory(
     projectName: m.project?.name ?? null,
     projectSuggested: m.projectSuggested,
     source: m.source,
+    sourceUrl: m.sourceUrl ?? null,
+    sourceTitle: m.sourceTitle ?? null,
+    clipRect: parseClipRect(m.clipRectJson),
     status: m.status,
     latitude: m.latitude ?? null,
     longitude: m.longitude ?? null,
@@ -228,6 +241,35 @@ function serializeMemory(
     syncStatus: m.syncStatus ?? "indexed",
     createdAt: m.createdAt.toISOString(),
   };
+}
+
+function sanitizeClipRectJson(raw: string): string | null {
+  const rect = parseClipRect(raw);
+  return rect ? JSON.stringify(rect) : null;
+}
+
+function parseClipRect(raw: string | null | undefined) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const keys = ["x", "y", "width", "height", "imageWidth", "imageHeight"] as const;
+    const out: Record<(typeof keys)[number], number> = {
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      imageWidth: 0,
+      imageHeight: 0,
+    };
+    for (const k of keys) {
+      const n = Number(parsed[k]);
+      if (!Number.isFinite(n)) return null;
+      out[k] = n;
+    }
+    return out;
+  } catch {
+    return null;
+  }
 }
 
 function handleErr(err: unknown) {
