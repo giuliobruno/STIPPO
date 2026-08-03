@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Crop, MonitorSmartphone, Share2 } from "lucide-react";
+import { Crop, Globe, MonitorSmartphone, Share2 } from "lucide-react";
 
 /**
  * How to clip a detail from anywhere: browser, PDF, Teams, Photos, etc.
@@ -16,30 +16,50 @@ export function ClipAnywhereGuide() {
         <div className="space-y-1">
           <p className="font-medium text-[var(--ink)]">Clip from anywhere</p>
           <p className="text-sm text-[var(--ink-muted)]">
-            Website, PDF, Teams call, Photos, CAD preview — grab the screen, then
-            crop the detail in Stippo.
+            <strong className="text-[var(--ink)]">Pick image &amp; clip</strong> only
+            opens your files. To crop an image already open in another browser tab,
+            use the <strong className="text-[var(--ink)]">Stippo Clip</strong>{" "}
+            extension on that tab.
           </p>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-[var(--accent)]/30 bg-[var(--accent-soft)] p-3">
+        <p className="mb-1 flex items-center gap-2 text-sm font-medium text-[var(--accent)]">
+          <Globe className="h-3.5 w-3.5" />
+          Image open in another browser window?
+        </p>
+        <ol className="list-decimal space-y-1 pl-4 text-xs text-[var(--ink-muted)]">
+          <li>
+            Install once: Chrome →{" "}
+            <code className="text-[var(--ink)]">chrome://extensions</code> →
+            Developer mode → Load unpacked → folder{" "}
+            <code className="text-[var(--ink)]">extensions/chrome</code>
+          </li>
+          <li>
+            On the site tab: click the Stippo Clip icon (or press{" "}
+            <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>)
+          </li>
+          <li>Drag a rectangle over the detail → Stippo opens with the clip</li>
+        </ol>
+        <Link
+          href="/app/clip-anywhere"
+          className="mt-2 inline-flex text-xs font-medium text-[var(--accent)]"
+        >
+          Install steps →
+        </Link>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-3">
           <p className="mb-1 flex items-center gap-2 text-sm font-medium">
             <Crop className="h-3.5 w-3.5 text-[var(--accent)]" />
-            Computer
+            Computer (not the browser)
           </p>
-          <ul className="space-y-1.5 text-xs text-[var(--ink-muted)]">
-            <li>
-              <strong className="text-[var(--ink)]">Any app</strong> (PDF, Teams,
-              Photos…): OS screenshot → paste here (
-              <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>V</kbd>) → drag region.
-            </li>
-            <li>
-              <strong className="text-[var(--ink)]">Browser tab</strong>: Stippo Clip
-              extension → drag on the page (or{" "}
-              <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>).
-            </li>
-          </ul>
+          <p className="text-xs text-[var(--ink-muted)]">
+            PDF, Teams, Photos…: OS screenshot → paste here (
+            <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>V</kbd>) → drag region.
+          </p>
         </div>
 
         <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-3">
@@ -47,26 +67,12 @@ export function ClipAnywhereGuide() {
             <Share2 className="h-3.5 w-3.5 text-[var(--accent)]" />
             Phone
           </p>
-          <ul className="space-y-1.5 text-xs text-[var(--ink-muted)]">
-            <li>
-              Screenshot in Teams / PDF / Safari / Photos →{" "}
-              <strong className="text-[var(--ink)]">Share → Visual Memory</strong>{" "}
-              → drag region.
-            </li>
-            <li>
-              Or tap <strong className="text-[var(--ink)]">Create clip</strong> and
-              pick the screenshot from the gallery.
-            </li>
-          </ul>
+          <p className="text-xs text-[var(--ink-muted)]">
+            Screenshot → Share → Visual Memory, or pick the screenshot from the
+            gallery.
+          </p>
         </div>
       </div>
-
-      <Link
-        href="/app/clip-anywhere"
-        className="inline-flex text-xs font-medium text-[var(--accent)]"
-      >
-        Full clip-from-anywhere guide →
-      </Link>
     </div>
   );
 }

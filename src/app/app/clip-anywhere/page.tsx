@@ -11,11 +11,35 @@ export default function ClipAnywherePage() {
           Clip from anywhere
         </h2>
         <p className="text-sm text-[var(--ink-muted)]">
-          Stippo cannot inject a crop tool inside every other app (Teams, Acrobat,
-          Photos…). The universal pattern is: capture the screen → crop the detail
-          in Stippo. On desktop Chrome, the extension crops on the live webpage.
+          <strong className="text-[var(--ink)]">Important:</strong> the button
+          inside Stippo only picks a file from your device. If the image is already
+          open in another browser tab, you must use the{" "}
+          <strong className="text-[var(--ink)]">Stippo Clip</strong> extension on
+          that tab — Stippo cannot reach into other windows by itself.
         </p>
       </div>
+
+      <section className="vm-card space-y-3 p-5">
+        <h3 className="font-[family-name:var(--font-serif)] text-xl">
+          Browser tab (what you want for an open webpage)
+        </h3>
+        <ol className="list-decimal space-y-2 pl-5 text-sm text-[var(--ink-muted)]">
+          <li>
+            Chrome/Edge → <code className="text-[var(--ink)]">chrome://extensions</code> →
+            Developer mode → Load unpacked →{" "}
+            <code className="text-[var(--ink)]">extensions/chrome</code> in this repo.
+          </li>
+          <li>
+            Open the extension popup → set App origin to your Stippo URL (e.g.{" "}
+            <code className="text-[var(--ink)]">http://localhost:3000</code>) → Save.
+          </li>
+          <li>
+            Go to the tab with the image → click <strong className="text-[var(--ink)]">Stippo Clip</strong>{" "}
+            (or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) → drag a rectangle.
+          </li>
+          <li>Stippo opens Capture with that clip — annotate and save.</li>
+        </ol>
+      </section>
 
       <section className="vm-card space-y-3 p-5">
         <h3 className="font-[family-name:var(--font-serif)] text-xl">
@@ -43,7 +67,7 @@ export default function ClipAnywherePage() {
 
       <section className="vm-card space-y-3 p-5">
         <h3 className="font-[family-name:var(--font-serif)] text-xl">
-          Computer — any app
+          Computer — any other app
         </h3>
         <p className="text-sm text-[var(--ink-muted)]">
           PDF, Teams meeting, Finder/Explorer preview, Figma, CAD…
@@ -57,27 +81,6 @@ export default function ClipAnywherePage() {
             Open Stippo Capture and paste (<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>V</kbd>).
           </li>
           <li>Drag to refine the clip if needed → save.</li>
-        </ol>
-      </section>
-
-      <section className="vm-card space-y-3 p-5">
-        <h3 className="font-[family-name:var(--font-serif)] text-xl">
-          Computer — browser tab (live crop)
-        </h3>
-        <ol className="list-decimal space-y-2 pl-5 text-sm text-[var(--ink-muted)]">
-          <li>
-            Chrome/Edge → <code className="text-[var(--ink)]">chrome://extensions</code> →
-            Developer mode → Load unpacked →{" "}
-            <code className="text-[var(--ink)]">extensions/chrome</code>.
-          </li>
-          <li>
-            Popup → set App origin to your Stippo URL → Save.
-          </li>
-          <li>
-            On any site (or in-browser PDF) → Stippo Clip, right-click{" "}
-            <strong className="text-[var(--ink)]">Clip region to Stippo</strong>, or{" "}
-            <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> → drag.
-          </li>
         </ol>
       </section>
     </div>

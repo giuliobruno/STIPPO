@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   Camera,
   ClipboardPaste,
@@ -451,12 +452,18 @@ export function CaptureForm() {
             >
               <div>
                 <p className="font-[family-name:var(--font-serif)] text-xl">
-                  Clip a detail
+                  Add an image to clip
                 </p>
                 <p className="mt-1 text-sm text-[var(--ink-muted)]">
-                  {clipIntent
-                    ? "Paste a screenshot, share one into Stippo, or pick from gallery — then drag the region."
-                    : "Paste / share / pick a screenshot from any app, then drag the region to keep."}
+                  This button picks a file from your device. If the image is already
+                  open in another browser tab, use the{" "}
+                  <Link
+                    href="/app/clip-anywhere"
+                    className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                  >
+                    Stippo Clip extension
+                  </Link>{" "}
+                  on that tab instead.
                 </p>
               </div>
               <button
@@ -465,7 +472,7 @@ export function CaptureForm() {
                 onClick={startClipFlow}
               >
                 <Crop className="h-4 w-4" />
-                Create clip
+                Pick image &amp; clip
               </button>
             </div>
           )}
