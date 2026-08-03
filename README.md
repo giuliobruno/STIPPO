@@ -14,15 +14,15 @@ Snap a detail. Speak the thought. Ask months later.
 |---|---|
 | Email auth (+ optional Google) | ✅ |
 | Capture: camera / upload / paste screenshot | ✅ |
-| In-app region clip (crop before save) | ✅ |
-| Chrome extension region clip → Capture | ✅ |
+| In-app crop before save | ✅ |
+| Phone: screenshot → Share → Stippo (PWA) | ✅ |
 | On-the-fly voice/text annotation (native STT) | ✅ |
 | GPS opt-in + EXIF GPS from site photos | ✅ |
 | Hybrid sync (thumbnail + index; full-res Pro) | ✅ |
 | Projects + AI suggest | ✅ |
 | Hybrid search | ✅ |
 | Stripe Pro checkout / portal / webhooks | ✅ |
-| PWA share_target + Capacitor scaffold | ✅ |
+| PWA + Capacitor scaffold | ✅ |
 | Free 100-memory gate | ✅ |
 
 ---
@@ -55,11 +55,12 @@ OPENAI_API_KEY=sk-...
 3. Forward webhooks: `stripe listen --forward-to localhost:3000/api/stripe/webhook`
 4. Open **/app/billing**
 
-### Clip from anywhere
-- **Phone**: screenshot/share from Teams, PDF, Photos… → Visual Memory → crop
-- **Desktop any app**: OS screenshot → paste in Capture → crop
-- **Browser tab**: Chrome extension in [`extensions/chrome`](extensions/chrome)
-- Guide in-app: `/app/clip-anywhere` · details in [`docs/MOBILE.md`](docs/MOBILE.md)
+### Share a screenshot (phone)
+1. Install Stippo to the home screen (Chrome → Add to Home screen)
+2. Take a screenshot → **Share** → **Stippo**
+3. Crop the detail → annotate → save
+
+Details: [`docs/MOBILE.md`](docs/MOBILE.md)
 
 ### Mobile (Capacitor)
 See [`docs/MOBILE.md`](docs/MOBILE.md)
@@ -101,5 +102,4 @@ Pro opt-in: sync full-resolution original
 ## Docs
 
 - [`docs/PRODUCT.md`](docs/PRODUCT.md) — product principles
-- [`docs/MOBILE.md`](docs/MOBILE.md) — Capacitor / share sheet
-- [`extensions/chrome/README.md`](extensions/chrome/README.md) — Stippo Clip browser extension
+- [`docs/MOBILE.md`](docs/MOBILE.md) — Share sheet / PWA / Capacitor

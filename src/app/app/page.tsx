@@ -32,7 +32,7 @@ export default async function FeedPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-6">
-        <div className="flex items-end justify-between gap-4">
+      <div className="flex items-end justify-between gap-4">
         <div>
           <h2 className="font-[family-name:var(--font-serif)] text-3xl">
             {project ? project.name : "Recent memories"}
@@ -48,14 +48,9 @@ export default async function FeedPage({ searchParams }: Props) {
             </Link>
           ) : null}
         </div>
-        <div className="hidden gap-2 sm:flex">
-          <Link href="/app/capture?mode=clip" className="vm-btn-secondary">
-            Clip
-          </Link>
-          <Link href="/app/capture" className="vm-btn-primary">
-            + Capture
-          </Link>
-        </div>
+        <Link href="/app/capture" className="vm-btn-primary hidden sm:inline-flex">
+          + Capture
+        </Link>
       </div>
 
       {memories.length === 0 ? (
@@ -64,17 +59,12 @@ export default async function FeedPage({ searchParams }: Props) {
             Your feed is empty
           </h3>
           <p className="max-w-md text-sm text-[var(--ink-muted)]">
-            Clip a facade detail from a screenshot, add a voice note about the Milan
-            hotel, and ask for it later.
+            On your phone: screenshot → Share → Stippo. Crop the detail, add a voice
+            note, ask for it later.
           </p>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/app/capture?mode=clip" className="vm-btn-primary">
-              Create a clip
-            </Link>
-            <Link href="/app/capture" className="vm-btn-secondary">
-              Open Capture
-            </Link>
-          </div>
+          <Link href="/app/capture" className="vm-btn-primary">
+            Open Capture
+          </Link>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -1,6 +1,6 @@
 {
-  "name": "Visual Memory",
-  "short_name": "VisualMemory",
+  "name": "Stippo",
+  "short_name": "Stippo",
   "description": "Project visual memory for architects and designers",
   "start_url": "/app",
   "display": "standalone",
@@ -36,11 +36,5 @@
         }
       ]
     }
-  },
-  "protocol_handlers": [
-    {
-      "protocol": "web+visualmemory",
-      "url": "/app/capture?note=%s"
-    }
-  ]
+  }
 }

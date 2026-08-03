@@ -4,8 +4,8 @@ export const runtime = "nodejs";
 
 /**
  * PWA Web Share Target endpoint.
- * Receives shared images/text from the OS share sheet, then hands off to Capture
- * via IndexedDB (same bridge as the Chrome extension).
+ * Receives shared screenshots/images from the OS share sheet, then hands off
+ * to Capture via IndexedDB so the user can crop and annotate.
  */
 export async function POST(req: Request) {
   const form = await req.formData();
@@ -99,7 +99,7 @@ function htmlHandoff(payload: {
     (function () {
       var payload = ${json};
       function go() {
-        location.replace("/app/capture?source=share&mode=clip");
+        location.replace("/app/capture?source=share");
       }
       try {
         var req = indexedDB.open("stippo-clip", 1);

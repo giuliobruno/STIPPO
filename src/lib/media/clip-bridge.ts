@@ -1,6 +1,6 @@
 /**
- * Bridge for Chrome extension / PWA share → Capture page.
- * Content script posts STIPPO_PENDING_CLIP; we also accept IndexedDB handoff.
+ * Bridge for PWA share / pending image → Capture page.
+ * Share handoff posts STIPPO_PENDING_CLIP; we also accept IndexedDB.
  */
 
 export type PendingClip = {

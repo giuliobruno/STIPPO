@@ -18,12 +18,12 @@ export const metadata: Metadata = {
   title: "Visual Memory — Project references, finally findable",
   description:
     "Snap a detail. Speak the thought. Local-first visual memory for architects and designers.",
-  applicationName: "Visual Memory",
+  applicationName: "Stippo",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Visual Memory",
+    title: "Stippo",
   },
 };
 

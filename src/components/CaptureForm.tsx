@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import {
   Camera,
   ClipboardPaste,
@@ -28,7 +27,7 @@ import {
   type GeoPoint,
 } from "@/lib/media/geo";
 import { CropEditor } from "@/components/CropEditor";
-import { ClipAnywhereGuide } from "@/components/ClipAnywhereGuide";
+import { ShareToStippoHint } from "@/components/ShareToStippoHint";
 
 type Project = { id: string; name: string };
 
@@ -85,7 +84,6 @@ export function CaptureForm() {
   const [clipRect, setClipRect] = useState<CropRect | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceTitle, setSourceTitle] = useState("");
-  const [clipIntent, setClipIntent] = useState(false);
   const recognitionRef = useRef<SpeechRec | null>(null);
   const attachGpsRef = useRef(attachGps);
   attachGpsRef.current = attachGps;
@@ -94,12 +92,10 @@ export function CaptureForm() {
     if (file && file.type.startsWith("image/") && preview) {
       setCropping(true);
       setError(null);
-      setClipIntent(false);
       return;
     }
     openCropAfterLoadRef.current = true;
     setError(null);
-    setClipIntent(false);
     clipPickerRef.current?.click();
   }, [file, preview]);
 
@@ -168,7 +164,6 @@ export function CaptureForm() {
         if (clip.sourceTitle) setSourceTitle(clip.sourceTitle);
         if (clip.note) setTranscript((t) => t || clip.note || "");
         if (clip.clipRect) setClipRect(clip.clipRect);
-        setClipIntent(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load clip");
       }
@@ -176,7 +171,7 @@ export function CaptureForm() {
     [setImageFile]
   );
 
-  // Deep link / share / extension: /app/capture?note=...&source=extension&mode=clip
+  // Deep link / share: /app/capture?note=...&source=share
   useEffect(() => {
     const note =
       searchParams.get("note") ||
@@ -187,7 +182,6 @@ export function CaptureForm() {
       searchParams.get("sourceUrl") || searchParams.get("url") || "";
     const title =
       searchParams.get("sourceTitle") || searchParams.get("title") || "";
-    const mode = searchParams.get("mode");
     if (note) setTranscript(note);
     if (
       src === "share" ||
@@ -199,16 +193,13 @@ export function CaptureForm() {
     ) {
       setSource(src);
     } else if (url || searchParams.get("text")) {
-      // PWA share without explicit source
       setSource("share");
     }
     if (url) setSourceUrl(url);
     if (title) setSourceTitle(title);
-    // Highlight clip-first UI; do not auto-open the file picker (needs a real tap).
-    setClipIntent(mode === "clip");
   }, [searchParams]);
 
-  // Extension / share-target bridge (postMessage + IndexedDB)
+  // Share-target / pending-image bridge (postMessage + IndexedDB)
   useEffect(() => {
     let cancelled = false;
 
@@ -404,13 +395,12 @@ export function CaptureForm() {
             Capture memory
           </h2>
           <p className="text-sm text-[var(--ink-muted)]">
-            Clip a detail from anywhere — browser, PDF, Teams, Photos — then speak
-            the thought (e.g. “scala interessante ferro e vetro progetto Milano”).
-            Thumbnail + understanding sync; originals stay local.
+            Share a screenshot into Stippo, crop the detail, speak the thought —
+            e.g. “scala interessante ferro e vetro progetto Milano”.
           </p>
         </div>
 
-        <ClipAnywhereGuide />
+        <ShareToStippoHint />
 
         <div className="vm-card p-4">
           {preview ? (
@@ -424,7 +414,7 @@ export function CaptureForm() {
                   onClick={startClipFlow}
                 >
                   <Crop className="h-4 w-4" />
-                  Clip region
+                  Crop detail
                 </button>
                 <button
                   type="button"
@@ -443,37 +433,13 @@ export function CaptureForm() {
               </div>
             </div>
           ) : (
-            <div
-              className={`flex aspect-[4/3] flex-col items-center justify-center gap-4 rounded-xl border border-dashed px-6 text-center ${
-                clipIntent
-                  ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                  : "border-[var(--line)] bg-[var(--paper)]"
-              }`}
-            >
-              <div>
-                <p className="font-[family-name:var(--font-serif)] text-xl">
-                  Add an image to clip
-                </p>
-                <p className="mt-1 text-sm text-[var(--ink-muted)]">
-                  This button picks a file from your device. If the image is already
-                  open in another browser tab, use the{" "}
-                  <Link
-                    href="/app/clip-anywhere"
-                    className="font-medium text-[var(--accent)] underline-offset-2 hover:underline"
-                  >
-                    Stippo Clip extension
-                  </Link>{" "}
-                  on that tab instead.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="vm-btn-primary"
-                onClick={startClipFlow}
-              >
-                <Crop className="h-4 w-4" />
-                Pick image &amp; clip
-              </button>
+            <div className="flex aspect-[4/3] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper)] px-6 text-center">
+              <p className="font-[family-name:var(--font-serif)] text-xl">
+                Waiting for a screenshot
+              </p>
+              <p className="text-sm text-[var(--ink-muted)]">
+                From your phone share sheet, or use Camera / Upload / Paste below.
+              </p>
             </div>
           )}
 
@@ -498,9 +464,7 @@ export function CaptureForm() {
               type="button"
               className="vm-btn-secondary"
               onClick={() =>
-                setError(
-                  "Screenshot any app (PDF, Teams, Photos…), then paste here (Ctrl/Cmd+V). Crop opens automatically."
-                )
+                setError("Paste a screenshot here (Ctrl/Cmd+V). Crop opens automatically.")
               }
             >
               <ClipboardPaste className="h-4 w-4" />
@@ -508,24 +472,20 @@ export function CaptureForm() {
             </button>
             <button
               type="button"
-              className="vm-btn-secondary border-[var(--accent)] text-[var(--accent)]"
-              onClick={startClipFlow}
+              className="vm-btn-secondary"
+              disabled={!file || !file.type.startsWith("image/")}
+              onClick={() => setCropping(true)}
             >
               <Crop className="h-4 w-4" />
-              Clip
+              Crop
             </button>
           </div>
           {clipRect ? (
             <p className="mt-2 text-xs text-[var(--ink-muted)]">
-              Clipped {Math.round(clipRect.width)}×{Math.round(clipRect.height)} from{" "}
+              Cropped {Math.round(clipRect.width)}×{Math.round(clipRect.height)} from{" "}
               {clipRect.imageWidth}×{clipRect.imageHeight}
             </p>
-          ) : (
-            <p className="mt-2 text-xs text-[var(--ink-muted)]">
-              Tip: tap <span className="font-medium text-[var(--ink)]">Clip</span> to
-              select only the detail you care about before saving.
-            </p>
-          )}
+          ) : null}
           <input
             ref={cameraRef}
             type="file"
