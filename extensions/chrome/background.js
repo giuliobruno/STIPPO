@@ -7,7 +7,7 @@ async function getAppOrigin() {
   return String(appOrigin || DEFAULT_APP_ORIGIN).replace(/\/$/, "");
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+function ensureContextMenu() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: "stippo-clip-region",
@@ -15,7 +15,10 @@ chrome.runtime.onInstalled.addListener(() => {
       contexts: ["page", "frame", "selection", "image", "video"],
     });
   });
-});
+}
+
+chrome.runtime.onInstalled.addListener(ensureContextMenu);
+ensureContextMenu();
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId !== "stippo-clip-region" || !tab?.id) return;
