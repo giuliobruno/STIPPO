@@ -62,6 +62,8 @@ export function CaptureForm() {
   const searchParams = useSearchParams();
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const clipPickerRef = useRef<HTMLInputElement>(null);
+  const openCropAfterLoadRef = useRef(false);
 
   const [preview, setPreview] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -81,9 +83,23 @@ export function CaptureForm() {
   const [clipRect, setClipRect] = useState<CropRect | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceTitle, setSourceTitle] = useState("");
+  const [clipIntent, setClipIntent] = useState(false);
   const recognitionRef = useRef<SpeechRec | null>(null);
   const attachGpsRef = useRef(attachGps);
   attachGpsRef.current = attachGps;
+
+  const startClipFlow = useCallback(() => {
+    if (file && file.type.startsWith("image/") && preview) {
+      setCropping(true);
+      setError(null);
+      setClipIntent(false);
+      return;
+    }
+    openCropAfterLoadRef.current = true;
+    setError(null);
+    setClipIntent(false);
+    clipPickerRef.current?.click();
+  }, [file, preview]);
 
   const setImageFile = useCallback(
     async (f: File, src: CaptureSource, opts?: { keepClipRect?: boolean }) => {
@@ -95,6 +111,11 @@ export function CaptureForm() {
       });
       if (!opts?.keepClipRect) setClipRect(null);
       setError(null);
+
+      const shouldOpenCrop =
+        openCropAfterLoadRef.current && f.type.startsWith("image/");
+      openCropAfterLoadRef.current = false;
+      if (shouldOpenCrop) setCropping(true);
 
       const exif = await readExifGps(f);
       if (exif) {
@@ -136,12 +157,13 @@ export function CaptureForm() {
     [setImageFile]
   );
 
-  // Deep link / share / extension: /app/capture?note=...&source=extension
+  // Deep link / share / extension: /app/capture?note=...&source=extension&mode=clip
   useEffect(() => {
     const note = searchParams.get("note") || searchParams.get("transcript");
     const src = searchParams.get("source");
     const url = searchParams.get("sourceUrl");
     const title = searchParams.get("sourceTitle");
+    const mode = searchParams.get("mode");
     if (note) setTranscript(note);
     if (
       src === "share" ||
@@ -155,6 +177,8 @@ export function CaptureForm() {
     }
     if (url) setSourceUrl(url);
     if (title) setSourceTitle(title);
+    // Highlight clip-first UI; do not auto-open the file picker (needs a real tap).
+    setClipIntent(mode === "clip");
   }, [searchParams]);
 
   // Chrome extension bridge (postMessage + IndexedDB fallback)
@@ -351,9 +375,9 @@ export function CaptureForm() {
             Capture memory
           </h2>
           <p className="text-sm text-[var(--ink-muted)]">
-            Paste a screenshot, clip a region, speak the thought — e.g. “scala
-            interessante ferro e vetro progetto Milano”. Thumbnail + understanding
-            sync; originals stay local.
+            Create a clip from a photo or screenshot, then speak the thought —
+            e.g. “scala interessante ferro e vetro progetto Milano”. Thumbnail +
+            understanding sync; originals stay local.
           </p>
         </div>
 
@@ -362,28 +386,57 @@ export function CaptureForm() {
             <div className="relative overflow-hidden rounded-xl">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={preview} alt="Preview" className="max-h-80 w-full object-cover" />
-              <button
-                type="button"
-                className="absolute right-3 top-3 rounded-full bg-black/60 p-2 text-white"
-                onClick={() => {
-                  if (preview) URL.revokeObjectURL(preview);
-                  setPreview(null);
-                  setFile(null);
-                  setGeo(null);
-                  setClipRect(null);
-                }}
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/65 to-transparent p-3 pt-10">
+                <button
+                  type="button"
+                  className="vm-btn-primary !bg-white !text-[var(--ink)]"
+                  onClick={startClipFlow}
+                >
+                  <Crop className="h-4 w-4" />
+                  Clip region
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full bg-black/50 p-2 text-white"
+                  aria-label="Remove image"
+                  onClick={() => {
+                    if (preview) URL.revokeObjectURL(preview);
+                    setPreview(null);
+                    setFile(null);
+                    setGeo(null);
+                    setClipRect(null);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="flex aspect-[4/3] flex-col items-center justify-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper)] px-6 text-center">
-              <p className="font-[family-name:var(--font-serif)] text-xl">
-                Screenshot or site photo
-              </p>
-              <p className="mt-1 text-sm text-[var(--ink-muted)]">
-                Camera · upload · paste · clip · Chrome extension
-              </p>
+            <div
+              className={`flex aspect-[4/3] flex-col items-center justify-center gap-4 rounded-xl border border-dashed px-6 text-center ${
+                clipIntent
+                  ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                  : "border-[var(--line)] bg-[var(--paper)]"
+              }`}
+            >
+              <div>
+                <p className="font-[family-name:var(--font-serif)] text-xl">
+                  Clip a detail
+                </p>
+                <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                  {clipIntent
+                    ? "Tap Create clip, choose a photo/screenshot, then drag the region."
+                    : "Pick a photo or screenshot, then drag the region to keep."}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="vm-btn-primary"
+                onClick={startClipFlow}
+              >
+                <Crop className="h-4 w-4" />
+                Create clip
+              </button>
             </div>
           )}
 
@@ -416,9 +469,8 @@ export function CaptureForm() {
             </button>
             <button
               type="button"
-              className="vm-btn-secondary"
-              disabled={!file || !file.type.startsWith("image/")}
-              onClick={() => setCropping(true)}
+              className="vm-btn-secondary border-[var(--accent)] text-[var(--accent)]"
+              onClick={startClipFlow}
             >
               <Crop className="h-4 w-4" />
               Clip
@@ -429,7 +481,12 @@ export function CaptureForm() {
               Clipped {Math.round(clipRect.width)}×{Math.round(clipRect.height)} from{" "}
               {clipRect.imageWidth}×{clipRect.imageHeight}
             </p>
-          ) : null}
+          ) : (
+            <p className="mt-2 text-xs text-[var(--ink-muted)]">
+              Tip: tap <span className="font-medium text-[var(--ink)]">Clip</span> to
+              select only the detail you care about before saving.
+            </p>
+          )}
           <input
             ref={cameraRef}
             type="file"
@@ -439,6 +496,7 @@ export function CaptureForm() {
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (f) void setImageFile(f, "camera");
+              e.target.value = "";
             }}
           />
           <input
@@ -449,6 +507,23 @@ export function CaptureForm() {
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (f) void setImageFile(f, "upload");
+              e.target.value = "";
+            }}
+          />
+          <input
+            ref={clipPickerRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) {
+                openCropAfterLoadRef.current = true;
+                void setImageFile(f, "upload");
+              } else {
+                openCropAfterLoadRef.current = false;
+              }
+              e.target.value = "";
             }}
           />
         </div>

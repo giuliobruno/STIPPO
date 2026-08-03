@@ -28,6 +28,19 @@ CAPACITOR_SERVER_URL=http://YOUR_LAN_IP:3000
 
 Or deploy Next.js and point Capacitor at that HTTPS URL.
 
+## In-app clip (phone + desktop)
+
+From the bottom nav tap **Clip**, or open `/app/capture?mode=clip`:
+
+1. Tap **Create clip**
+2. Choose camera roll / screenshot / photo
+3. Drag a rectangle over the detail
+4. **Apply clip** → annotate → save
+
+You can also open Capture, add an image, then tap **Clip region** on the preview.
+
+Chrome extension region-clip (desktop) still lives in `extensions/chrome`.
+
 ## Share target flows
 
 ### PWA (Android Chrome)

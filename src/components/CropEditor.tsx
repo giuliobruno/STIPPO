@@ -89,20 +89,20 @@ export function CropEditor({ imageUrl, onCancel, onApply }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/80 backdrop-blur-sm">
-      <div className="flex items-center justify-between gap-3 px-4 py-3 text-white">
+      <div className="flex flex-col gap-3 px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-medium">Clip region</p>
           <p className="text-xs text-white/70">
-            Drag to select the detail you want to remember. Esc to cancel.
+            Drag (or finger-drag) over the detail to keep. Esc to cancel.
           </p>
         </div>
         <div className="flex gap-2">
-          <button type="button" className="vm-btn-secondary !bg-white/10 !text-white !border-white/20" onClick={onCancel}>
+          <button type="button" className="vm-btn-secondary flex-1 !bg-white/10 !text-white !border-white/20 sm:flex-none" onClick={onCancel}>
             Cancel
           </button>
           <button
             type="button"
-            className="vm-btn-primary"
+            className="vm-btn-primary flex-1 sm:flex-none"
             disabled={!rect || rect.width < 4 || rect.height < 4}
             onClick={apply}
           >

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Crop,
   FolderKanban,
   Home,
   Plus,
@@ -19,6 +20,7 @@ const links = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const clipActive = pathname.startsWith("/app/capture");
 
   return (
     <div className="vm-shell mx-auto flex min-h-screen max-w-6xl flex-col px-4 pb-28 pt-6 sm:px-6">
@@ -55,6 +57,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
+        <Link
+          href="/app/capture?mode=clip"
+          className={cn(
+            "ml-1 flex flex-col items-center gap-1 rounded-xl px-3 py-2 text-[11px] font-medium",
+            clipActive
+              ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+              : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+          )}
+          aria-label="Create clip"
+        >
+          <Crop className="h-4 w-4" />
+          Clip
+        </Link>
         <Link
           href="/app/capture"
           className="vm-btn-primary ml-1 !rounded-xl !px-4 !py-3"
