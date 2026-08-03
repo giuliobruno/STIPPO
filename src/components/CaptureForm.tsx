@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   Camera,
   ClipboardPaste,
   Crop,
+  Images,
   MapPin,
   Mic,
   MicOff,
-  Upload,
   X,
 } from "lucide-react";
 import { createThumbnail } from "@/lib/media/thumbnail";
@@ -27,7 +28,6 @@ import {
   type GeoPoint,
 } from "@/lib/media/geo";
 import { CropEditor } from "@/components/CropEditor";
-import { ShareToStippoHint } from "@/components/ShareToStippoHint";
 
 type Project = { id: string; name: string };
 
@@ -63,7 +63,6 @@ export function CaptureForm() {
   const searchParams = useSearchParams();
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
-  const clipPickerRef = useRef<HTMLInputElement>(null);
   const openCropAfterLoadRef = useRef(false);
 
   const [preview, setPreview] = useState<string | null>(null);
@@ -88,15 +87,11 @@ export function CaptureForm() {
   const attachGpsRef = useRef(attachGps);
   attachGpsRef.current = attachGps;
 
-  const startClipFlow = useCallback(() => {
+  const startCrop = useCallback(() => {
     if (file && file.type.startsWith("image/") && preview) {
       setCropping(true);
       setError(null);
-      return;
     }
-    openCropAfterLoadRef.current = true;
-    setError(null);
-    clipPickerRef.current?.click();
   }, [file, preview]);
 
   const setImageFile = useCallback(
@@ -390,17 +385,22 @@ export function CaptureForm() {
       ) : null}
 
       <form onSubmit={onSubmit} className="mx-auto max-w-xl space-y-6">
-        <div className="space-y-2">
-          <h2 className="font-[family-name:var(--font-serif)] text-3xl">
-            Capture memory
-          </h2>
-          <p className="text-sm text-[var(--ink-muted)]">
-            Share a screenshot into Stippo, crop the detail, speak the thought —
-            e.g. “scala interessante ferro e vetro progetto Milano”.
-          </p>
+        <div className="flex items-end justify-between gap-3">
+          <div className="space-y-1">
+            <h2 className="font-[family-name:var(--font-serif)] text-3xl">
+              Capture memory
+            </h2>
+            <p className="text-sm text-[var(--ink-muted)]">
+              Pick a photo from your album, add a note on the fly, save.
+            </p>
+          </div>
+          <Link
+            href="/app/guide"
+            className="shrink-0 text-xs font-medium text-[var(--accent)]"
+          >
+            Guide
+          </Link>
         </div>
-
-        <ShareToStippoHint />
 
         <div className="vm-card p-4">
           {preview ? (
@@ -411,10 +411,10 @@ export function CaptureForm() {
                 <button
                   type="button"
                   className="vm-btn-primary !bg-white !text-[var(--ink)]"
-                  onClick={startClipFlow}
+                  onClick={startCrop}
                 >
                   <Crop className="h-4 w-4" />
-                  Crop detail
+                  Crop
                 </button>
                 <button
                   type="button"
@@ -433,17 +433,32 @@ export function CaptureForm() {
               </div>
             </div>
           ) : (
-            <div className="flex aspect-[4/3] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper)] px-6 text-center">
-              <p className="font-[family-name:var(--font-serif)] text-xl">
-                Waiting for a screenshot
-              </p>
-              <p className="text-sm text-[var(--ink-muted)]">
-                From your phone share sheet, or use Camera / Upload / Paste below.
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper)] px-6 text-center transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]"
+            >
+              <Images className="h-8 w-8 text-[var(--accent)]" />
+              <div>
+                <p className="font-[family-name:var(--font-serif)] text-xl">
+                  Choose from album
+                </p>
+                <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                  Any photo — then speak or type a note below
+                </p>
+              </div>
+            </button>
           )}
 
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              className="vm-btn-secondary"
+              onClick={() => fileRef.current?.click()}
+            >
+              <Images className="h-4 w-4" />
+              Album
+            </button>
             <button
               type="button"
               className="vm-btn-secondary"
@@ -455,31 +470,24 @@ export function CaptureForm() {
             <button
               type="button"
               className="vm-btn-secondary"
-              onClick={() => fileRef.current?.click()}
-            >
-              <Upload className="h-4 w-4" />
-              Upload
-            </button>
-            <button
-              type="button"
-              className="vm-btn-secondary"
               onClick={() =>
-                setError("Paste a screenshot here (Ctrl/Cmd+V). Crop opens automatically.")
+                setError("On desktop: paste a screenshot with Ctrl/Cmd+V.")
               }
             >
               <ClipboardPaste className="h-4 w-4" />
               Paste
             </button>
+          </div>
+          {file?.type.startsWith("image/") ? (
             <button
               type="button"
-              className="vm-btn-secondary"
-              disabled={!file || !file.type.startsWith("image/")}
-              onClick={() => setCropping(true)}
+              className="vm-btn-secondary mt-2 w-full"
+              onClick={startCrop}
             >
               <Crop className="h-4 w-4" />
-              Crop
+              Crop detail (optional)
             </button>
-          </div>
+          ) : null}
           {clipRect ? (
             <p className="mt-2 text-xs text-[var(--ink-muted)]">
               Cropped {Math.round(clipRect.width)}×{Math.round(clipRect.height)} from{" "}
@@ -501,27 +509,11 @@ export function CaptureForm() {
           <input
             ref={fileRef}
             type="file"
-            accept="image/*,application/pdf"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void setImageFile(f, "upload");
-              e.target.value = "";
-            }}
-          />
-          <input
-            ref={clipPickerRef}
-            type="file"
             accept="image/*"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) {
-                openCropAfterLoadRef.current = true;
-                void setImageFile(f, "upload");
-              } else {
-                openCropAfterLoadRef.current = false;
-              }
+              if (f) void setImageFile(f, "upload");
               e.target.value = "";
             }}
           />

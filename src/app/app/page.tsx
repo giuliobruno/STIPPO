@@ -59,8 +59,7 @@ export default async function FeedPage({ searchParams }: Props) {
             Your feed is empty
           </h3>
           <p className="max-w-md text-sm text-[var(--ink-muted)]">
-            On your phone: screenshot → Share → Stippo. Crop the detail, add a voice
-            note, ask for it later.
+            Choose a photo from your album, add a spoken note, find it later.
           </p>
           <Link href="/app/capture" className="vm-btn-primary">
             Open Capture

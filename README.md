@@ -55,12 +55,12 @@ OPENAI_API_KEY=sk-...
 3. Forward webhooks: `stripe listen --forward-to localhost:3000/api/stripe/webhook`
 4. Open **/app/billing**
 
-### Share a screenshot (phone)
-1. Install Stippo to the home screen (Chrome → Add to Home screen)
-2. Take a screenshot → **Share** → **Stippo**
-3. Crop the detail → annotate → save
+### Capture
+1. Open **/app/capture** → **Album** → pick a photo
+2. Speak or type a note → Save
+3. Optional **Crop** for a detail; on Android you can also Share a screenshot into Stippo (install to Home screen first)
 
-Details: [`docs/MOBILE.md`](docs/MOBILE.md)
+Details: [`docs/MOBILE.md`](docs/MOBILE.md) · in-app `/app/guide`
 
 ### Mobile (Capacitor)
 See [`docs/MOBILE.md`](docs/MOBILE.md)
