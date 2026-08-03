@@ -55,6 +55,12 @@ OPENAI_API_KEY=sk-...
 3. Forward webhooks: `stripe listen --forward-to localhost:3000/api/stripe/webhook`
 4. Open **/app/billing**
 
+### Clip from anywhere
+- **Phone**: screenshot/share from Teams, PDF, Photos… → Visual Memory → crop
+- **Desktop any app**: OS screenshot → paste in Capture → crop
+- **Browser tab**: Chrome extension in [`extensions/chrome`](extensions/chrome)
+- Guide in-app: `/app/clip-anywhere` · details in [`docs/MOBILE.md`](docs/MOBILE.md)
+
 ### Mobile (Capacitor)
 See [`docs/MOBILE.md`](docs/MOBILE.md)
 

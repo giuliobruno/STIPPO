@@ -20,7 +20,7 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["activeTab", "scripting", "storage", "tabs"],
+  "permissions": ["activeTab", "scripting", "storage", "tabs", "contextMenus"],
   "host_permissions": ["http://localhost:3000/*", "https://*/*", "http://*/*"],
   "content_scripts": [
     {

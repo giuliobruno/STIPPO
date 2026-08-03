@@ -1,5 +1,5 @@
 /**
- * Bridge for Chrome extension → Capture page.
+ * Bridge for Chrome extension / PWA share → Capture page.
  * Content script posts STIPPO_PENDING_CLIP; we also accept IndexedDB handoff.
  */
 
@@ -8,6 +8,10 @@ export type PendingClip = {
   sourceUrl?: string;
   sourceTitle?: string;
   note?: string;
+  /** When true, open the crop editor after ingest (e.g. full screenshot from Share). */
+  openCrop?: boolean;
+  /** Capture source hint: extension | share | screenshot */
+  source?: "extension" | "share" | "screenshot";
   clipRect?: {
     x: number;
     y: number;

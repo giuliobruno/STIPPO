@@ -7,6 +7,21 @@ async function getAppOrigin() {
   return String(appOrigin || DEFAULT_APP_ORIGIN).replace(/\/$/, "");
 }
 
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: "stippo-clip-region",
+      title: "Clip region to Stippo",
+      contexts: ["page", "frame", "selection", "image", "video"],
+    });
+  });
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== "stippo-clip-region" || !tab?.id) return;
+  void startClip(tab.id).catch(console.error);
+});
+
 async function ensureBridgeMatches(origin) {
   // Dynamically register bridge for custom deploy origins (beyond localhost).
   try {

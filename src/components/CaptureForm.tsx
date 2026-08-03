@@ -27,6 +27,7 @@ import {
   type GeoPoint,
 } from "@/lib/media/geo";
 import { CropEditor } from "@/components/CropEditor";
+import { ClipAnywhereGuide } from "@/components/ClipAnywhereGuide";
 
 type Project = { id: string; name: string };
 
@@ -102,7 +103,11 @@ export function CaptureForm() {
   }, [file, preview]);
 
   const setImageFile = useCallback(
-    async (f: File, src: CaptureSource, opts?: { keepClipRect?: boolean }) => {
+    async (
+      f: File,
+      src: CaptureSource,
+      opts?: { keepClipRect?: boolean; openCrop?: boolean }
+    ) => {
       setFile(f);
       setSource(src);
       setPreview((prev) => {
@@ -112,9 +117,17 @@ export function CaptureForm() {
       if (!opts?.keepClipRect) setClipRect(null);
       setError(null);
 
-      const shouldOpenCrop =
-        openCropAfterLoadRef.current && f.type.startsWith("image/");
+      const fromFlag = openCropAfterLoadRef.current;
       openCropAfterLoadRef.current = false;
+      const shouldOpenCrop =
+        f.type.startsWith("image/") &&
+        !opts?.keepClipRect &&
+        (Boolean(opts?.openCrop) ||
+          fromFlag ||
+          // Screens grabbed from other apps → go straight to crop.
+          src === "paste" ||
+          src === "screenshot" ||
+          src === "share");
       if (shouldOpenCrop) setCropping(true);
 
       const exif = await readExifGps(f);
@@ -141,15 +154,20 @@ export function CaptureForm() {
   const ingestPendingClip = useCallback(
     async (clip: PendingClip) => {
       try {
-        const f = dataUrlToFile(
-          clip.dataUrl,
-          `clip-${Date.now()}.png`
-        );
-        await setImageFile(f, "extension");
+        const f = dataUrlToFile(clip.dataUrl, `clip-${Date.now()}.png`);
+        const src: CaptureSource =
+          clip.source === "share" || clip.source === "screenshot"
+            ? clip.source
+            : "extension";
+        // Extension already cropped; share/screenshot usually need the crop UI.
+        const openCrop =
+          Boolean(clip.openCrop) || (!clip.clipRect && src !== "extension");
+        await setImageFile(f, src, { openCrop, keepClipRect: Boolean(clip.clipRect) });
         if (clip.sourceUrl) setSourceUrl(clip.sourceUrl);
         if (clip.sourceTitle) setSourceTitle(clip.sourceTitle);
         if (clip.note) setTranscript((t) => t || clip.note || "");
         if (clip.clipRect) setClipRect(clip.clipRect);
+        setClipIntent(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load clip");
       }
@@ -159,10 +177,15 @@ export function CaptureForm() {
 
   // Deep link / share / extension: /app/capture?note=...&source=extension&mode=clip
   useEffect(() => {
-    const note = searchParams.get("note") || searchParams.get("transcript");
+    const note =
+      searchParams.get("note") ||
+      searchParams.get("transcript") ||
+      searchParams.get("text");
     const src = searchParams.get("source");
-    const url = searchParams.get("sourceUrl");
-    const title = searchParams.get("sourceTitle");
+    const url =
+      searchParams.get("sourceUrl") || searchParams.get("url") || "";
+    const title =
+      searchParams.get("sourceTitle") || searchParams.get("title") || "";
     const mode = searchParams.get("mode");
     if (note) setTranscript(note);
     if (
@@ -174,6 +197,9 @@ export function CaptureForm() {
       src === "upload"
     ) {
       setSource(src);
+    } else if (url || searchParams.get("text")) {
+      // PWA share without explicit source
+      setSource("share");
     }
     if (url) setSourceUrl(url);
     if (title) setSourceTitle(title);
@@ -181,7 +207,7 @@ export function CaptureForm() {
     setClipIntent(mode === "clip");
   }, [searchParams]);
 
-  // Chrome extension bridge (postMessage + IndexedDB fallback)
+  // Extension / share-target bridge (postMessage + IndexedDB)
   useEffect(() => {
     let cancelled = false;
 
@@ -199,6 +225,8 @@ export function CaptureForm() {
         sourceTitle: data.sourceTitle,
         note: data.note,
         clipRect: data.clipRect,
+        openCrop: data.openCrop,
+        source: data.source,
       });
     };
     window.addEventListener("message", onMessage);
@@ -375,11 +403,13 @@ export function CaptureForm() {
             Capture memory
           </h2>
           <p className="text-sm text-[var(--ink-muted)]">
-            Create a clip from a photo or screenshot, then speak the thought —
-            e.g. “scala interessante ferro e vetro progetto Milano”. Thumbnail +
-            understanding sync; originals stay local.
+            Clip a detail from anywhere — browser, PDF, Teams, Photos — then speak
+            the thought (e.g. “scala interessante ferro e vetro progetto Milano”).
+            Thumbnail + understanding sync; originals stay local.
           </p>
         </div>
+
+        <ClipAnywhereGuide />
 
         <div className="vm-card p-4">
           {preview ? (
@@ -425,8 +455,8 @@ export function CaptureForm() {
                 </p>
                 <p className="mt-1 text-sm text-[var(--ink-muted)]">
                   {clipIntent
-                    ? "Tap Create clip, choose a photo/screenshot, then drag the region."
-                    : "Pick a photo or screenshot, then drag the region to keep."}
+                    ? "Paste a screenshot, share one into Stippo, or pick from gallery — then drag the region."
+                    : "Paste / share / pick a screenshot from any app, then drag the region to keep."}
                 </p>
               </div>
               <button
@@ -461,7 +491,9 @@ export function CaptureForm() {
               type="button"
               className="vm-btn-secondary"
               onClick={() =>
-                setError("Paste a screenshot anywhere on this page (Ctrl/Cmd+V).")
+                setError(
+                  "Screenshot any app (PDF, Teams, Photos…), then paste here (Ctrl/Cmd+V). Crop opens automatically."
+                )
               }
             >
               <ClipboardPaste className="h-4 w-4" />
@@ -528,7 +560,7 @@ export function CaptureForm() {
           />
         </div>
 
-        {(sourceUrl || source === "extension") && (
+        {(sourceUrl || source === "extension" || source === "share") && (
           <div className="vm-card space-y-3 p-4">
             <p className="vm-label mb-0">Source page</p>
             <input

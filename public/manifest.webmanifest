@@ -22,13 +22,19 @@
     }
   ],
   "share_target": {
-    "action": "/app/capture",
-    "method": "GET",
-    "enctype": "application/x-www-form-urlencoded",
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
     "params": {
       "title": "title",
-      "text": "note",
-      "url": "url"
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "media",
+          "accept": ["image/*"]
+        }
+      ]
     }
   },
   "protocol_handlers": [
