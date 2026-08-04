@@ -39,15 +39,15 @@ export default async function LandingPage({
             For architects & interior designers
           </p>
           <h1 className="max-w-3xl font-[family-name:var(--font-serif)] text-5xl leading-[1.05] tracking-tight text-[var(--ink)] sm:text-6xl md:text-7xl">
-            Your project references, finally findable.
+            Your project archive. On your Drive. Finally findable.
           </h1>
           <p className="mt-6 max-w-xl text-lg text-[var(--ink-muted)]">
-            Snap a detail. Speak the thought. Originals stay on your device —
-            we store the understanding so you can ask months later.
+            Capture work photos in-app — separate from birthday photos. AI tags
+            every reference. Sync lives on <em>your</em> Google Drive or OneDrive.
           </p>
           <div className="mt-10 flex flex-wrap gap-3">
             <Link href="/signup" className="vm-btn-primary !px-6 !py-3.5 text-base">
-              Capture your first memory
+              Start your work vault
             </Link>
             <Link href="/login" className="vm-btn-secondary !px-6 !py-3.5 text-base">
               I already have an account
@@ -58,16 +58,16 @@ export default async function LandingPage({
         <section className="grid gap-6 border-t border-[var(--line)] pt-12 sm:grid-cols-3">
           {[
             {
-              title: "Image + voice = one memory",
-              body: "Not just a saved photo — the intent, material, and project travel with it.",
+              title: "Camera in-app = work only",
+              body: "References never mix with personal albums. Clip, snapshot, or short video — all tagged.",
             },
             {
-              title: "Project-native",
-              body: "Milan Hotel. Navigli apartment. Client Rossi. No folder hell.",
+              title: "Vision at ingest",
+              body: "Search “wooden stairs” even if you never said the words — AI reads the image once.",
             },
             {
-              title: "Local-first privacy",
-              body: "Full-resolution files stay local. The cloud holds a light semantic index.",
+              title: "BYOS — your cloud",
+              body: "Full-res files stay in your Drive folder. Stippo runs auth, billing, and AI only.",
             },
           ].map((item) => (
             <div key={item.title}>
@@ -79,13 +79,13 @@ export default async function LandingPage({
 
         <section className="mt-16 rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-8 sm:p-10">
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--ink-muted)]">
-            Pricing (architecture ready)
+            Pricing
           </p>
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             {[
-              { name: "Free", price: "€0", detail: "100 memories · basic AI" },
-              { name: "Pro", price: "$15/mo", detail: "Unlimited · advanced search · projects" },
-              { name: "Studio", price: "$49/user", detail: "Shared project library · team" },
+              { name: "Free", price: "€0", detail: "100 memories · vision tags · 1 cloud" },
+              { name: "Pro", price: "$15/mo", detail: "Unlimited · video · multi-device sync" },
+              { name: "Studio", price: "$49/user", detail: "Shared Drive folder · team (soon)" },
             ].map((tier) => (
               <div key={tier.name} className="rounded-2xl border border-[var(--line)] p-5">
                 <p className="text-sm text-[var(--ink-muted)]">{tier.name}</p>

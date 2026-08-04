@@ -28,6 +28,20 @@ import {
   type GeoPoint,
 } from "@/lib/media/geo";
 import { CropEditor } from "@/components/CropEditor";
+import {
+  analyzeViaGateway,
+  applyAnalysis,
+  assertVaultCanCreate,
+  createVaultMemory,
+  initVault,
+  listVaultProjects,
+  markMemoryFailed,
+  upsertVaultProject,
+} from "@/lib/vault";
+import { createVideoPoster, extractVideoKeyframes } from "@/lib/vault/video";
+import { processSyncQueue } from "@/lib/vault/sync";
+import type { VaultMediaType, VaultSource } from "@/lib/vault/types";
+import { FREE_VIDEO_MAX_MS, PRO_VIDEO_MAX_MS } from "@/lib/vault/types";
 
 type Project = { id: string; name: string };
 
@@ -38,7 +52,10 @@ type CaptureSource =
   | "voice"
   | "share"
   | "screenshot"
-  | "extension";
+  | "extension"
+  | "clip"
+  | "snapshot"
+  | "import";
 
 type SpeechRec = {
   lang: string;
@@ -63,13 +80,14 @@ export function CaptureForm() {
   const searchParams = useSearchParams();
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
   const openCropAfterLoadRef = useRef(false);
 
   const [preview, setPreview] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [transcript, setTranscript] = useState("");
   const [listening, setListening] = useState(false);
-  const [source, setSource] = useState<CaptureSource>("upload");
+  const [source, setSource] = useState<CaptureSource>("camera");
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -77,7 +95,6 @@ export function CaptureForm() {
   const [sttSupported, setSttSupported] = useState(true);
   const [attachGps, setAttachGps] = useState(true);
   const [geo, setGeo] = useState<GeoPoint | null>(null);
-  const [syncOriginal, setSyncOriginal] = useState(false);
   const [isPro, setIsPro] = useState(false);
   const [cropping, setCropping] = useState(false);
   const [clipRect, setClipRect] = useState<CropRect | null>(null);
@@ -146,12 +163,28 @@ export function CaptureForm() {
   const ingestPendingClip = useCallback(
     async (clip: PendingClip) => {
       try {
-        const f = dataUrlToFile(clip.dataUrl, `clip-${Date.now()}.png`);
+        const mimeHint = clip.dataUrl.slice(0, 40);
+        const isVideo = mimeHint.includes("video/");
+        const f = dataUrlToFile(
+          clip.dataUrl,
+          isVideo ? `clip-${Date.now()}.mp4` : `clip-${Date.now()}.png`
+        );
+        if (isVideo) {
+          setFile(f);
+          setSource("share");
+          setPreview((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return URL.createObjectURL(f);
+          });
+          if (clip.sourceUrl) setSourceUrl(clip.sourceUrl);
+          if (clip.sourceTitle) setSourceTitle(clip.sourceTitle);
+          if (clip.note) setTranscript((t) => t || clip.note || "");
+          return;
+        }
         const src: CaptureSource =
           clip.source === "share" || clip.source === "screenshot"
             ? clip.source
             : "extension";
-        // Extension already cropped; share/screenshot usually need the crop UI.
         const openCrop =
           Boolean(clip.openCrop) || (!clip.clipRect && src !== "extension");
         await setImageFile(f, src, { openCrop, keepClipRect: Boolean(clip.clipRect) });
@@ -224,14 +257,36 @@ export function CaptureForm() {
   }, [ingestPendingClip]);
 
   useEffect(() => {
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then((d) => setProjects(d.projects || []))
-      .catch(() => undefined);
+    void initVault().then(() =>
+      listVaultProjects().then((ps) =>
+        setProjects(ps.map((p) => ({ id: p.id, name: p.name })))
+      )
+    );
 
     fetch("/api/billing/status")
       .then((r) => r.json())
       .then((d) => setIsPro(Boolean(d.pro)))
+      .catch(() => undefined);
+
+    // Seed projects from server if vault empty (migration bridge)
+    fetch("/api/projects")
+      .then((r) => r.json())
+      .then(async (d) => {
+        const serverProjects = (d.projects || []) as Project[];
+        if (!serverProjects.length) return;
+        const local = await listVaultProjects();
+        if (local.length) return;
+        for (const p of serverProjects) {
+          await upsertVaultProject({
+            id: p.id,
+            name: p.name,
+            description: null,
+            location: null,
+            clientName: null,
+          });
+        }
+        setProjects(serverProjects);
+      })
       .catch(() => undefined);
 
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -326,47 +381,101 @@ export function CaptureForm() {
     if (!file) setSource("voice");
   }
 
+  function resolveMediaType(f: File | null, src: CaptureSource): VaultMediaType {
+    if (!f) return "audio";
+    if (f.type.startsWith("video/")) return "video";
+    if (src === "clip" || clipRect) return "clip";
+    if (src === "screenshot" || src === "share" || src === "paste") return "snapshot";
+    return "image";
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file && !transcript.trim()) {
-      setError("Add a photo/screenshot or speak a note.");
+      setError("Add a photo, video, or speak a note.");
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const body = new FormData();
-      if (file) {
-        body.append("file", file);
-        if (file.type.startsWith("image/")) {
-          const thumb = await createThumbnail(file);
-          body.append(
-            "thumbnail",
-            new File([thumb], "thumb.jpg", { type: "image/jpeg" })
+      await assertVaultCanCreate(isPro);
+
+      const mediaType = resolveMediaType(file, source);
+      const vaultSource = (source === "upload" ? "import" : source) as VaultSource;
+
+      let thumb: Blob | null = null;
+      let frames: Blob[] = [];
+      let durationMs: number | null = null;
+      let width: number | null = null;
+      let height: number | null = null;
+
+      if (file?.type.startsWith("image/")) {
+        thumb = await createThumbnail(file);
+      } else if (file?.type.startsWith("video/")) {
+        const maxMs = isPro ? PRO_VIDEO_MAX_MS : FREE_VIDEO_MAX_MS;
+        const extracted = await extractVideoKeyframes(file, isPro ? 3 : 1);
+        durationMs = extracted.durationMs;
+        width = extracted.width;
+        height = extracted.height;
+        if (durationMs > maxMs) {
+          throw new Error(
+            isPro
+              ? "Video exceeds 5 minute Pro limit."
+              : "Free plan: video max 30 seconds. Upgrade to Pro for longer clips."
           );
         }
-      }
-      if (transcript.trim()) body.append("transcript", transcript.trim());
-      body.append("source", source);
-      if (projectId) body.append("projectId", projectId);
-      if (!file && transcript.trim()) body.append("voiceOnly", "true");
-      if (syncOriginal) body.append("syncOriginal", "true");
-      if (sourceUrl.trim()) body.append("sourceUrl", sourceUrl.trim());
-      if (sourceTitle.trim()) body.append("sourceTitle", sourceTitle.trim());
-      if (clipRect) body.append("clipRect", JSON.stringify(clipRect));
-
-      if (attachGps && geo) {
-        body.append("latitude", String(geo.latitude));
-        body.append("longitude", String(geo.longitude));
-        body.append("locationSource", geo.locationSource);
-        if (geo.placeName) body.append("placeName", geo.placeName);
+        frames = extracted.frames;
+        thumb = frames[0] || (await createVideoPoster(file));
       }
 
-      const res = await fetch("/api/memories", { method: "POST", body });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Capture failed");
-      router.push(`/app/memories/${data.memory.id}`);
-      router.refresh();
+      const memory = await createVaultMemory({
+        mediaType,
+        source: vaultSource,
+        file: file || null,
+        mimeType: file?.type,
+        thumb,
+        frames: frames.length ? frames : undefined,
+        transcript: transcript.trim() || undefined,
+        projectId: projectId || null,
+        sourceUrl: sourceUrl.trim() || null,
+        sourceTitle: sourceTitle.trim() || null,
+        clipRect: clipRect || null,
+        latitude: attachGps && geo ? geo.latitude : null,
+        longitude: attachGps && geo ? geo.longitude : null,
+        placeName: attachGps && geo?.placeName ? geo.placeName : null,
+        locationSource: attachGps && geo ? geo.locationSource : null,
+        durationMs,
+        width,
+        height,
+      });
+
+      // Vision at ingest — image, poster, or first keyframe
+      const visionBlob =
+        file?.type.startsWith("image/")
+          ? file
+          : frames[0] || thumb;
+
+      try {
+        const analysis = await analyzeViaGateway({
+          imageBlob: visionBlob,
+          mimeType: visionBlob?.type || "image/jpeg",
+          transcript: transcript.trim() || undefined,
+          projectHints: projects.map((p) => p.name),
+        });
+        await applyAnalysis(memory.id, analysis, {
+          projectId: projectId || null,
+        });
+      } catch (aiErr) {
+        await markMemoryFailed(
+          memory.id,
+          aiErr instanceof Error ? aiErr.message : "AI failed"
+        );
+      }
+
+      // Background sync to user cloud (non-blocking)
+      void processSyncQueue().catch(() => undefined);
+
+      router.push(`/app/memories/${memory.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Capture failed");
     } finally {
@@ -388,10 +497,10 @@ export function CaptureForm() {
         <div className="flex items-end justify-between gap-3">
           <div className="space-y-1">
             <h2 className="font-[family-name:var(--font-serif)] text-3xl">
-              Capture memory
+              Capture to work vault
             </h2>
             <p className="text-sm text-[var(--ink-muted)]">
-              Pick a photo from your album, add a note on the fly, save.
+              Shoot here — stays out of your birthday album. Syncs to your Drive.
             </p>
           </div>
           <Link
@@ -405,21 +514,33 @@ export function CaptureForm() {
         <div className="vm-card p-4">
           {preview ? (
             <div className="relative overflow-hidden rounded-xl">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={preview} alt="Preview" className="max-h-80 w-full object-cover" />
+              {file?.type.startsWith("video/") ? (
+                <video
+                  src={preview}
+                  controls
+                  className="max-h-80 w-full object-cover"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={preview} alt="Preview" className="max-h-80 w-full object-cover" />
+              )}
               <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/65 to-transparent p-3 pt-10">
-                <button
-                  type="button"
-                  className="vm-btn-primary !bg-white !text-[var(--ink)]"
-                  onClick={startCrop}
-                >
-                  <Crop className="h-4 w-4" />
-                  Crop
-                </button>
+                {file?.type.startsWith("image/") ? (
+                  <button
+                    type="button"
+                    className="vm-btn-primary !bg-white !text-[var(--ink)]"
+                    onClick={startCrop}
+                  >
+                    <Crop className="h-4 w-4" />
+                    Crop
+                  </button>
+                ) : (
+                  <span />
+                )}
                 <button
                   type="button"
                   className="rounded-full bg-black/50 p-2 text-white"
-                  aria-label="Remove image"
+                  aria-label="Remove media"
                   onClick={() => {
                     if (preview) URL.revokeObjectURL(preview);
                     setPreview(null);
@@ -435,47 +556,55 @@ export function CaptureForm() {
           ) : (
             <button
               type="button"
-              onClick={() => fileRef.current?.click()}
+              onClick={() => cameraRef.current?.click()}
               className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper)] px-6 text-center transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]"
             >
-              <Images className="h-8 w-8 text-[var(--accent)]" />
+              <Camera className="h-8 w-8 text-[var(--accent)]" />
               <div>
                 <p className="font-[family-name:var(--font-serif)] text-xl">
-                  Choose from album
+                  Open work camera
                 </p>
                 <p className="mt-1 text-sm text-[var(--ink-muted)]">
-                  Any photo — then speak or type a note below
+                  Photos &amp; clips land in your Stippo vault — not the rullino
                 </p>
               </div>
             </button>
           )}
 
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              className="vm-btn-secondary"
-              onClick={() => fileRef.current?.click()}
-            >
-              <Images className="h-4 w-4" />
-              Album
-            </button>
+          <div className="mt-4 grid grid-cols-4 gap-2">
             <button
               type="button"
               className="vm-btn-secondary"
               onClick={() => cameraRef.current?.click()}
             >
               <Camera className="h-4 w-4" />
-              Camera
+              Photo
+            </button>
+            <button
+              type="button"
+              className="vm-btn-secondary"
+              onClick={() => videoRef.current?.click()}
+            >
+              <Camera className="h-4 w-4" />
+              Video
+            </button>
+            <button
+              type="button"
+              className="vm-btn-secondary"
+              onClick={() => fileRef.current?.click()}
+            >
+              <Images className="h-4 w-4" />
+              Import
             </button>
             <button
               type="button"
               className="vm-btn-secondary"
               onClick={() =>
-                setError("On desktop: paste a screenshot with Ctrl/Cmd+V.")
+                setError("Paste a screenshot with Ctrl/Cmd+V, or Share → Stippo on Android.")
               }
             >
               <ClipboardPaste className="h-4 w-4" />
-              Paste
+              Clip
             </button>
           </div>
           {file?.type.startsWith("image/") ? (
@@ -507,13 +636,45 @@ export function CaptureForm() {
             }}
           />
           <input
-            ref={fileRef}
+            ref={videoRef}
             type="file"
-            accept="image/*"
+            accept="video/*"
+            capture="environment"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) void setImageFile(f, "upload");
+              if (f) {
+                setFile(f);
+                setSource("camera");
+                setPreview((prev) => {
+                  if (prev) URL.revokeObjectURL(prev);
+                  return URL.createObjectURL(f);
+                });
+                setClipRect(null);
+                setError(null);
+              }
+              e.target.value = "";
+            }}
+          />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,video/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) {
+                if (f.type.startsWith("video/")) {
+                  setFile(f);
+                  setSource("import");
+                  setPreview((prev) => {
+                    if (prev) URL.revokeObjectURL(prev);
+                    return URL.createObjectURL(f);
+                  });
+                } else {
+                  void setImageFile(f, "import");
+                }
+              }
               e.target.value = "";
             }}
           />
@@ -611,19 +772,13 @@ export function CaptureForm() {
           </select>
         </div>
 
-        <label className="flex items-start gap-3 text-sm text-[var(--ink-muted)]">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={syncOriginal}
-            disabled={!isPro}
-            onChange={(e) => setSyncOriginal(e.target.checked)}
-          />
-          <span>
-            Sync full-resolution original to cloud (Pro)
-            {!isPro ? " — upgrade in Billing" : " — otherwise only thumbnail + index sync"}
-          </span>
-        </label>
+        <p className="text-xs text-[var(--ink-muted)]">
+          Saves to your local work vault, then syncs to the cloud folder you chose in{" "}
+          <Link href="/app/vault" className="text-[var(--accent)]">
+            Vault settings
+          </Link>
+          .
+        </p>
 
         {error ? (
           <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-[var(--danger)]">
@@ -632,7 +787,7 @@ export function CaptureForm() {
         ) : null}
 
         <button type="submit" disabled={busy} className="vm-btn-primary w-full !py-3.5">
-          {busy ? "Understanding…" : "Save memory"}
+          {busy ? "Understanding…" : "Save to vault"}
         </button>
       </form>
     </>

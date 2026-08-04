@@ -1,7 +1,7 @@
 {
   "name": "Stippo",
   "short_name": "Stippo",
-  "description": "Project visual memory for architects and designers",
+  "description": "Work visual vault for architects — on your Drive",
   "start_url": "/app",
   "display": "standalone",
   "background_color": "#f3f1ec",
@@ -32,7 +32,7 @@
       "files": [
         {
           "name": "media",
-          "accept": ["image/*"]
+          "accept": ["image/*", "video/*"]
         }
       ]
     }

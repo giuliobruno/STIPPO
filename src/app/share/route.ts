@@ -12,11 +12,11 @@ export async function POST(req: Request) {
   const title = String(form.get("title") || "").trim();
   const text = String(form.get("text") || form.get("note") || "").trim();
   const url = String(form.get("url") || "").trim();
-  const file = pickSharedImage(form);
+  const file = pickSharedMedia(form);
 
   if (file) {
-    if (file.size > 12 * 1024 * 1024) {
-      return new Response("Shared image is too large (max 12MB).", {
+    if (file.size > 80 * 1024 * 1024) {
+      return new Response("Shared file is too large (max 80MB).", {
         status: 413,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
@@ -25,13 +25,14 @@ export async function POST(req: Request) {
     const bytes = Buffer.from(await file.arrayBuffer());
     const mime = file.type || "image/png";
     const dataUrl = `data:${mime};base64,${bytes.toString("base64")}`;
+    const isVideo = mime.startsWith("video/");
 
     return htmlHandoff({
       dataUrl,
       sourceUrl: url,
       sourceTitle: title,
       note: text,
-      openCrop: true,
+      openCrop: !isVideo,
       source: "share",
     });
   }
@@ -45,16 +46,24 @@ export async function POST(req: Request) {
   return Response.redirect(dest, 303);
 }
 
-function pickSharedImage(form: FormData): File | null {
-  const keys = ["media", "file", "files", "image"];
+function pickSharedMedia(form: FormData): File | null {
+  const keys = ["media", "file", "files", "image", "video"];
   for (const key of keys) {
     const value = form.get(key);
-    if (value instanceof File && value.size > 0 && value.type.startsWith("image/")) {
+    if (
+      value instanceof File &&
+      value.size > 0 &&
+      (value.type.startsWith("image/") || value.type.startsWith("video/"))
+    ) {
       return value;
     }
   }
   for (const [, value] of form.entries()) {
-    if (value instanceof File && value.size > 0 && value.type.startsWith("image/")) {
+    if (
+      value instanceof File &&
+      value.size > 0 &&
+      (value.type.startsWith("image/") || value.type.startsWith("video/"))
+    ) {
       return value;
     }
   }

@@ -28,7 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Stippo
           </p>
           <h1 className="font-[family-name:var(--font-serif)] text-2xl leading-tight text-[var(--ink)] sm:text-[1.75rem]">
-            Your project brain
+            Work vault
           </h1>
         </Link>
         <UserMenu />

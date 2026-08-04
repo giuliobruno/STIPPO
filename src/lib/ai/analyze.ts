@@ -17,8 +17,40 @@ const emptyEntities = (): MemoryEntities => ({
 });
 
 function getClient(): OpenAI | null {
-  if (!process.env.OPENAI_API_KEY) return null;
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  // Prefer OpenRouter (multi-model gateway). Falls back to OpenAI direct.
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  if (openRouterKey) {
+    return new OpenAI({
+      apiKey: openRouterKey,
+      baseURL: "https://openrouter.ai/api/v1",
+      defaultHeaders: {
+        "HTTP-Referer": process.env.NEXTAUTH_URL || "http://localhost:3000",
+        "X-Title": "Stippo",
+      },
+    });
+  }
+  if (process.env.OPENAI_API_KEY) {
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return null;
+}
+
+function visionModel(): string {
+  return (
+    process.env.OPENROUTER_VISION_MODEL ||
+    process.env.OPENAI_VISION_MODEL ||
+    (process.env.OPENROUTER_API_KEY ? "openai/gpt-4o-mini" : "gpt-4o-mini")
+  );
+}
+
+function embeddingModel(): string {
+  return (
+    process.env.OPENROUTER_EMBEDDING_MODEL ||
+    process.env.OPENAI_EMBEDDING_MODEL ||
+    (process.env.OPENROUTER_API_KEY
+      ? "openai/text-embedding-3-small"
+      : "text-embedding-3-small")
+  );
 }
 
 const SYSTEM_PROMPT = `You are an expert visual memory analyst for architects, interior designers, and built-environment professionals.
@@ -27,7 +59,7 @@ Always respond with valid JSON only. Prefer domain language (materials, systems,
 
 /**
  * Analyze an image (vision + OCR-ish extraction via multimodal model).
- * Falls back to mock analysis when OPENAI_API_KEY is absent — app stays runnable offline.
+ * Falls back to mock analysis when no API key is set — app stays runnable offline.
  */
 export async function analyzeImage(
   imageBase64: string,
@@ -74,7 +106,7 @@ Return JSON:
   ];
 
   const res = await client.chat.completions.create({
-    model: process.env.OPENAI_VISION_MODEL || "gpt-4o-mini",
+    model: visionModel(),
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
@@ -100,7 +132,7 @@ export async function analyzeTranscript(
   }
 
   const res = await client.chat.completions.create({
-    model: process.env.OPENAI_VISION_MODEL || "gpt-4o-mini",
+    model: visionModel(),
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
@@ -181,7 +213,7 @@ export async function embedText(text: string): Promise<number[] | null> {
   if (!client || !text.trim()) return mockEmbedding(text);
 
   const res = await client.embeddings.create({
-    model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
+    model: embeddingModel(),
     input: text.slice(0, 8000),
   });
   return res.data[0]?.embedding ?? null;
