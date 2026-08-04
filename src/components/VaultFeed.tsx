@@ -81,12 +81,14 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--ink-muted)]">
             {cloudLabel ? (
-              <span className="inline-flex items-center gap-1 text-[var(--accent)]">
-                <Cloud className="h-3.5 w-3.5" />
-                {cloudLabel}
-                {meta?.lastSyncAt
-                  ? ` · synced ${new Date(meta.lastSyncAt).toLocaleString()}`
-                  : ""}
+              <span className="inline-flex max-w-full items-start gap-1 text-[var(--accent)]">
+                <Cloud className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span className="min-w-0 break-all font-mono">
+                  {meta?.cloudFolderPath || cloudLabel}
+                  {meta?.lastSyncAt
+                    ? ` · synced ${new Date(meta.lastSyncAt).toLocaleString()}`
+                    : ""}
+                </span>
               </span>
             ) : (
               <Link

@@ -47,6 +47,7 @@ export async function connectCloud(
     cloudProvider: provider,
     cloudFolderId: location.folderId,
     cloudFolderName: location.folderName,
+    cloudFolderPath: location.displayPath || location.folderName,
     lastSyncAt: null,
   });
   return location;
@@ -61,6 +62,7 @@ export async function disconnectCloud(): Promise<void> {
     cloudProvider: "none",
     cloudFolderId: null,
     cloudFolderName: null,
+    cloudFolderPath: null,
   });
 }
 

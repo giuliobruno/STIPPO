@@ -78,6 +78,7 @@ export async function getMeta(): Promise<VaultMeta> {
       cloudProvider: "none",
       cloudFolderId: null,
       cloudFolderName: null,
+      cloudFolderPath: null,
       lastSyncAt: null,
       userId: null,
     };

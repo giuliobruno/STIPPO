@@ -30,6 +30,8 @@ export interface VaultMeta {
   cloudProvider: CloudProviderId;
   cloudFolderId: string | null;
   cloudFolderName: string | null;
+  /** Full path label (browser cannot read FS path — user confirms/pastes it) */
+  cloudFolderPath: string | null;
   lastSyncAt: string | null;
   userId: string | null;
 }

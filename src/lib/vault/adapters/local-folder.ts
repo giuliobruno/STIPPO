@@ -5,6 +5,7 @@ import type {
 } from "@/lib/vault/types";
 
 const HANDLE_KEY = "stippo_local_folder_name";
+const PATH_KEY = "stippo_local_folder_path";
 
 type DirHandle = FileSystemDirectoryHandle;
 
@@ -12,6 +13,9 @@ type DirHandle = FileSystemDirectoryHandle;
  * Desktop adapter: write into a user-picked folder that is already synced
  * by Google Drive Desktop / OneDrive / Dropbox.
  * Uses File System Access API (Chrome/Edge).
+ *
+ * Browsers do not expose the absolute filesystem path — we store a
+ * user-confirmed path via setLocalFolderPath().
  */
 export function createLocalFolderAdapter(): VaultSyncAdapter {
   let root: DirHandle | null = null;
@@ -23,7 +27,7 @@ export function createLocalFolderAdapter(): VaultSyncAdapter {
     async connect(): Promise<VaultLocation> {
       if (!("showDirectoryPicker" in window)) {
         throw new Error(
-          "Folder picker requires Chrome or Edge on desktop. Use Google Drive OAuth on mobile."
+          "Folder picker requires Chrome or Edge on desktop."
         );
       }
       root = await (
@@ -32,19 +36,29 @@ export function createLocalFolderAdapter(): VaultSyncAdapter {
         }
       ).showDirectoryPicker({ mode: "readwrite" });
       localStorage.setItem(HANDLE_KEY, root.name);
-      // Persist handle in IndexedDB for re-open
+      const prevPath = localStorage.getItem(PATH_KEY);
+      if (
+        prevPath &&
+        !prevPath.endsWith(root.name) &&
+        !prevPath.includes(`\\${root.name}`) &&
+        !prevPath.includes(`/${root.name}`)
+      ) {
+        localStorage.removeItem(PATH_KEY);
+      }
       await saveHandle(root);
+      const displayPath = localStorage.getItem(PATH_KEY) || root.name;
       return {
         provider: "local_folder",
         folderId: root.name,
         folderName: root.name,
-        displayPath: root.name,
+        displayPath,
       };
     },
 
     async disconnect(): Promise<void> {
       root = null;
       localStorage.removeItem(HANDLE_KEY);
+      localStorage.removeItem(PATH_KEY);
       await clearHandle();
     },
 
@@ -56,11 +70,12 @@ export function createLocalFolderAdapter(): VaultSyncAdapter {
 
     async getLocation(): Promise<VaultLocation | null> {
       if (!(await this.isConnected()) || !root) return null;
+      const displayPath = localStorage.getItem(PATH_KEY) || root.name;
       return {
         provider: "local_folder",
         folderId: root.name,
         folderName: root.name,
-        displayPath: root.name,
+        displayPath,
       };
     },
 
@@ -131,6 +146,18 @@ export function createLocalFolderAdapter(): VaultSyncAdapter {
     return root;
   }
 }
+
+/** Persist a user-confirmed absolute path label (browser cannot read it). */
+export function setLocalFolderPath(fullPath: string): void {
+  const trimmed = fullPath.trim();
+  if (trimmed) localStorage.setItem(PATH_KEY, trimmed);
+  else localStorage.removeItem(PATH_KEY);
+}
+
+export function getLocalFolderPath(): string | null {
+  return localStorage.getItem(PATH_KEY);
+}
+
 
 async function getDirHandle(
   root: DirHandle,

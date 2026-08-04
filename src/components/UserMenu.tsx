@@ -76,7 +76,7 @@ export function UserMenu() {
               Account & security
             </MenuLink>
             <MenuLink href="/app/vault" icon={Cloud} onClick={() => setOpen(false)}>
-              Work vault / cloud
+              Dove salvare le foto
             </MenuLink>
             <MenuLink href="/app/billing" icon={CreditCard} onClick={() => setOpen(false)}>
               Subscription

@@ -63,16 +63,16 @@ Non usare `NEXT_PUBLIC_`. Se leak → revoca e ricrea.
 
 Senza nessuna chiave AI l’app funziona in modalità mock.
 
-### C) Cloud vault — cartella locale (nessuna cloud key)
+### C) Vault Google Drive — una volta sola (script)
 
-Non servono `GOOGLE_CLIENT_ID` / Dropbox app key.
+```powershell
+pnpm setup:drive
+```
 
-1. Installa Drive Desktop / Dropbox / OneDrive sul PC  
-2. Crea una cartella `Stippo` dentro quella cloud  
-3. In app: **/app/vault** → **Choose vault folder** → seleziona quella cartella  
-4. Il client cloud sincronizza in automatico  
+Lo script apre le pagine Google, ti chiede il Client ID e lo scrive nel `.env`.  
+Poi: `pnpm dev` → `/app/vault` → **Usa il mio Google Drive**.
 
-Su telefono le capture restano nel vault del browser finché non apri Stippo sul desktop e colleghi la cartella.
+Gli architetti non lanciano lo script: premono solo il pulsante e fanno login.
 
 ---
 
