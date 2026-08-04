@@ -19,6 +19,7 @@ export type VaultSyncState = "local" | "queued" | "synced" | "conflict" | "missi
 export type CloudProviderId =
   | "google_drive"
   | "onedrive"
+  | "dropbox"
   | "local_folder"
   | "icloud_files"
   | "none";

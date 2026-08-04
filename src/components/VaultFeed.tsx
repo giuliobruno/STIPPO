@@ -94,7 +94,7 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
                 className="inline-flex items-center gap-1 text-[var(--accent)]"
               >
                 <CloudOff className="h-3.5 w-3.5" />
-                Connect your Drive
+                Choose vault folder
               </Link>
             )}
           </div>

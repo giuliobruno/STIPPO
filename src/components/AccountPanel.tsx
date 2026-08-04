@@ -278,8 +278,8 @@ export function AccountPanel() {
       <section className="vm-card space-y-3 p-6">
         <h3 className="font-[family-name:var(--font-serif)] text-xl">Work vault</h3>
         <p className="text-sm text-[var(--ink-muted)]">
-          Connect Google Drive or a desktop sync folder. Your project media stays
-          on your cloud — Stippo never hosts the full-res files.
+          Connect a folder on your computer (inside Drive, Dropbox, or OneDrive).
+          Your cloud app syncs it live — Stippo never hosts the full-res files.
         </p>
         <Link href="/app/vault" className="vm-btn-secondary inline-flex">
           Vault &amp; cloud settings

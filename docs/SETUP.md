@@ -63,42 +63,38 @@ Non usare `NEXT_PUBLIC_`. Se leak → revoca e ricrea.
 
 Senza nessuna chiave AI l’app funziona in modalità mock.
 
-### C) Google Drive BYOS (consigliato per multi-device)
+### C) Cloud vault — cartella locale (nessuna cloud key)
 
-1. https://console.cloud.google.com → crea/seleziona un progetto  
-2. Abilita **Google Drive API**  
-3. **APIs & Services → Credentials → Create OAuth client ID**  
-   - Application type: **Web application**  
-   - Authorized JavaScript origins: `http://localhost:3000` (+ dominio prod)  
-   - Authorized redirect URIs: `http://localhost:3000` (GIS token client)  
-4. Copia il **Client ID** in:
+Non servono `GOOGLE_CLIENT_ID` / Dropbox app key.
+
+1. Installa Drive Desktop / Dropbox / OneDrive sul PC  
+2. Crea una cartella `Stippo` dentro quella cloud  
+3. In app: **/app/vault** → **Choose vault folder** → seleziona quella cartella  
+4. Il client cloud sincronizza in automatico  
+
+Su telefono le capture restano nel vault del browser finché non apri Stippo sul desktop e colleghi la cartella.
+
+---
+
+### D) Google login NextAuth (opzionale)
 
 ```
-NEXT_PUBLIC_GOOGLE_CLIENT_ID="xxxxx.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
 ```
 
-Opzionale (login Google via NextAuth, non Drive):
+Solo se vuoi “Sign in with Google” (non serve per la sync Drive del vault).
 
-```
-GOOGLE_CLIENT_ID="stesso-o-altro-client"
-GOOGLE_CLIENT_SECRET="solo-server"
-```
-
-**Nota:** `NEXT_PUBLIC_GOOGLE_CLIENT_ID` è pubblico di proposito (è un client ID).  
-La protezione Drive viene da OAuth + scope `drive.file` (solo cartella Stippo).
-
-Per produzione Google richiederà **OAuth consent screen** e, se l’app è pubblica, la verifica.
-
-### D) Stripe Pro (quando vuoi abbonamenti)
+### E) Stripe Pro (quando vuoi abbonamenti)
 
 1. Stripe Dashboard → Product → Price $15/mo  
 2. In `.env`:
 
 ```
-STRIPE_SECRET_KEY="sk_..."
-STRIPE_PRICE_PRO="price_..."
-STRIPE_WEBHOOK_SECRET="whsec_..."
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_..."
+STRIPE_SECRET_KEY=sk_...
+STRIPE_PRICE_PRO=price_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_...
 ```
 
 3. Webhook locale: `stripe listen --forward-to localhost:3000/api/stripe/webhook`
@@ -109,7 +105,7 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_..."
 
 1. **Signup** su http://localhost:3000/signup  
 2. Menu utente → **Work vault / cloud** (`/app/vault`)  
-3. Collega **Google Drive** (o su desktop Chrome: **Local sync folder**)  
+3. **Choose vault folder** → seleziona `Stippo` dentro Drive/Dropbox/OneDrive sul PC  
 4. **Capture** → Photo o Video → nota opzionale → Save  
 5. **Search** → prova “legno”, “scala”, materiali…  
 6. Chrome/Edge → Install prompt oppure menu “Installa app” / “Aggiungi a Home”

@@ -6,6 +6,7 @@ import type {
 import { createGoogleDriveAdapter } from "@/lib/vault/adapters/google-drive";
 import { createLocalFolderAdapter } from "@/lib/vault/adapters/local-folder";
 import { createOneDriveAdapter } from "@/lib/vault/adapters/onedrive";
+import { createDropboxAdapter } from "@/lib/vault/adapters/dropbox";
 import {
   getBlob,
   getMemory,
@@ -28,6 +29,8 @@ export function getSyncAdapter(provider: CloudProviderId): VaultSyncAdapter | nu
       return createLocalFolderAdapter();
     case "onedrive":
       return createOneDriveAdapter();
+    case "dropbox":
+      return createDropboxAdapter();
     default:
       return null;
   }

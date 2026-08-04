@@ -66,8 +66,8 @@ export default async function LandingPage({
               body: "Search “wooden stairs” even if you never said the words — AI reads the image once.",
             },
             {
-              title: "BYOS — your cloud",
-              body: "Full-res files stay in your Drive folder. Stippo runs auth, billing, and AI only.",
+              title: "BYOS — your folder",
+              body: "Pick a folder inside Drive, Dropbox, or OneDrive. Their desktop app syncs it — no API keys.",
             },
           ].map((item) => (
             <div key={item.title}>
