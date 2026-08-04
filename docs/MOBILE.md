@@ -1,63 +1,37 @@
-# Mobile / Capacitor (Visual Memory)
+# Mobile (Stippo Work Vault)
 
-## Goal
+## Capture
 
-Make **Share → Visual Memory → annotate on the fly** the default habit on phone.
+1. **Photo** — in-app camera → annotate → save to vault  
+2. **Video** — short clip (30s Free / 5min Pro) → keyframe vision  
+3. **Import** — select work refs only (not full Camera Roll)  
+4. **Screenshot share (Android)** — Add to Home → Share → Stippo → crop  
 
-Hybrid Plan B still applies:
-- thumbnail + AI index sync across devices
-- full-res optional (Pro)
+In-app guide: `/app/guide`  
+Vault / cloud: `/app/vault`
 
-## Setup
+## Share into Stippo (Android)
+
+1. Chrome → **Add to Home screen**
+2. Screenshot or video → **Share** → **Stippo**
+3. Optional crop → note → save
+
+> **iOS:** use Photo/Import in Capture (Safari Share Target is limited). Capacitor build recommended.
+
+## Cloud sync
+
+1. `/app/vault` → connect Google Drive (creates `Stippo/` folder)
+2. Desktop alternative: pick a folder already synced by Drive Desktop
+3. Other device → same account → **Pull**
+
+## Capacitor
 
 ```bash
-npm run build
-# Capacitor uses server.url pointing at your Next deployment / localhost
-npx cap add android   # requires Android Studio
-npx cap add ios       # requires macOS + Xcode
+pnpm build
+npx cap add android
 npx cap sync
-npx cap open android
 ```
 
-`capacitor.config.ts` defaults `server.url` to `http://localhost:3000`.
-For a physical device, set:
+Required plugins: `@capacitor/camera`, `@capacitor/filesystem`, `@capacitor/network`, `@capacitor/geolocation`.
 
-```
-CAPACITOR_SERVER_URL=http://YOUR_LAN_IP:3000
-```
-
-Or deploy Next.js and point Capacitor at that HTTPS URL.
-
-## Share target flows
-
-### PWA (Android Chrome)
-`manifest.webmanifest` includes `share_target` → `/app/capture?note=...`
-
-### Capacitor Android
-Add an intent-filter on the main activity (after `cap add android`) for:
-
-- `android.intent.action.SEND`
-- mime `image/*` and `text/plain`
-
-Then bridge the shared URI into `/app/capture` with the image + optional text.
-
-Suggested plugin path:
-- `@capacitor/share` (outbound)
-- custom intent listener / community share-receive plugin for inbound
-
-### Deep link for quick annotate
-
-```
-/app/capture?source=share&note=scala%20interessante%20ferro%20e%20vetro%20progetto%20Milano
-```
-
-## GPS
-
-- Site photos: EXIF GPS via `exifr`
-- Capture-time: Capacitor Geolocation / browser geolocation (opt-in toggle)
-- Screenshots: usually no EXIF → rely on GPS toggle or spoken place
-
-## iOS notes
-
-Share sheet integration needs an App Share Extension (native) for the best UX.
-Capacitor alone can open the app; a Share Extension is Phase 2 polish.
+`CAPACITOR_SERVER_URL=http://YOUR_LAN_IP:3000` for a physical device.

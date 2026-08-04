@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import {
   ChevronDown,
+  Cloud,
   CreditCard,
   FileText,
   LogOut,
@@ -73,6 +74,9 @@ export function UserMenu() {
           <div className="p-1.5">
             <MenuLink href="/app/account" icon={UserRound} onClick={() => setOpen(false)}>
               Account & security
+            </MenuLink>
+            <MenuLink href="/app/vault" icon={Cloud} onClick={() => setOpen(false)}>
+              Work vault / cloud
             </MenuLink>
             <MenuLink href="/app/billing" icon={CreditCard} onClick={() => setOpen(false)}>
               Subscription

@@ -1,6 +1,6 @@
 export type PlanTier = "free" | "pro" | "team";
 
-export type MediaType = "image" | "audio" | "document";
+export type MediaType = "image" | "video" | "clip" | "snapshot" | "audio" | "document";
 export type MemorySource =
   | "camera"
   | "upload"
@@ -8,7 +8,10 @@ export type MemorySource =
   | "voice"
   | "share"
   | "screenshot"
-  | "extension";
+  | "extension"
+  | "clip"
+  | "snapshot"
+  | "import";
 
 export type ClipRect = {
   x: number;

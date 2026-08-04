@@ -49,20 +49,12 @@ export function SearchPanel() {
     if (!trimmed) return;
     setBusy(true);
     setSearched(true);
-    const res = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`);
-    const data = await res.json();
-    setBusy(false);
-    setHits(
-      (data.hits || []).map(
-        (h: {
-          id: string;
-          title: string;
-          description: string | null;
-          thumbnailUrl: string | null;
-          tags: string[];
-          projectName: string | null;
-          createdAt: string;
-        }) => ({
+    try {
+      const { initVault, searchVault } = await import("@/lib/vault");
+      await initVault();
+      const hits = await searchVault(trimmed);
+      setHits(
+        hits.map((h) => ({
           id: h.id,
           title: h.title,
           description: h.description,
@@ -70,9 +62,13 @@ export function SearchPanel() {
           tags: h.tags,
           projectName: h.projectName,
           createdAt: h.createdAt,
-        })
-      )
-    );
+        }))
+      );
+    } catch {
+      setHits([]);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function onSubmit(e: FormEvent) {

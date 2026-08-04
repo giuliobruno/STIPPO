@@ -274,6 +274,18 @@ export function AccountPanel() {
         </Link>
       </section>
 
+      {/* Work vault */}
+      <section className="vm-card space-y-3 p-6">
+        <h3 className="font-[family-name:var(--font-serif)] text-xl">Work vault</h3>
+        <p className="text-sm text-[var(--ink-muted)]">
+          Connect Google Drive or a desktop sync folder. Your project media stays
+          on your cloud — Stippo never hosts the full-res files.
+        </p>
+        <Link href="/app/vault" className="vm-btn-secondary inline-flex">
+          Vault &amp; cloud settings
+        </Link>
+      </section>
+
       {/* Privacy & legal */}
       <section className="vm-card space-y-4 p-6">
         <h3 className="font-[family-name:var(--font-serif)] text-xl">Privacy & legal</h3>

@@ -15,15 +15,22 @@ const serif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Visual Memory — Project references, finally findable",
+  title: "Stippo — Work vault for architects",
   description:
-    "Snap a detail. Speak the thought. Local-first visual memory for architects and designers.",
-  applicationName: "Visual Memory",
+    "Capture project references in-app. AI tags them. Sync to your Drive — separate from personal photos.",
+  applicationName: "Stippo",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Visual Memory",
+    title: "Stippo",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
   },
 };
 
