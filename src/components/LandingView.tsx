@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { fill, localeLabels, locales, useLocale, useT, type Locale } from "@/i18n";
+import { GuideClip } from "@/components/GuideClip";
+import type { GuideClipId } from "@/lib/guide-clips";
 
 type LandingViewProps = {
   deleted?: boolean;
@@ -17,15 +19,47 @@ export function LandingView({ deleted, signedIn }: LandingViewProps) {
     { title: L.feature1Title, body: L.feature1Body },
     { title: L.feature2Title, body: L.feature2Body },
     { title: L.feature3Title, body: L.feature3Body },
-    { title: L.feature4Title, body: L.feature4Body },
-    { title: L.feature5Title, body: L.feature5Body },
-    { title: L.feature6Title, body: L.feature6Body },
   ];
 
   const steps = [
     { title: L.how1Title, body: L.how1Body },
     { title: L.how2Title, body: L.how2Body },
     { title: L.how3Title, body: L.how3Body },
+  ];
+
+  const setup = [L.setup1, L.setup2, L.setup3, L.setup4, L.setup5];
+
+  const commands: { id: GuideClipId; title: string; steps: string[] }[] = [
+    {
+      id: "photo",
+      title: L.cmdPhotoTitle,
+      steps: [L.cmdPhoto1, L.cmdPhoto2, L.cmdPhoto3, L.cmdPhoto4],
+    },
+    {
+      id: "video",
+      title: L.cmdVideoTitle,
+      steps: [L.cmdVideo1, L.cmdVideo2, L.cmdVideo3],
+    },
+    {
+      id: "paste",
+      title: L.cmdPasteTitle,
+      steps: [L.cmdPaste1, L.cmdPaste2, L.cmdPaste3],
+    },
+    {
+      id: "crop",
+      title: L.cmdCropTitle,
+      steps: [L.cmdCrop1, L.cmdCrop2, L.cmdCrop3],
+    },
+    {
+      id: "save",
+      title: L.cmdSaveTitle,
+      steps: [L.cmdSave1, L.cmdSave2, L.cmdSave3],
+    },
+    {
+      id: "vault",
+      title: L.cmdVaultTitle,
+      steps: [L.cmdVault1, L.cmdVault2, L.cmdVault3],
+    },
   ];
 
   const tiers = [
@@ -106,6 +140,9 @@ export function LandingView({ deleted, signedIn }: LandingViewProps) {
                   </Link>
                 </>
               )}
+              <a href="#how-to" className="vm-btn-ghost !px-6 !py-3.5 text-base">
+                {L.jumpHowTo}
+              </a>
             </div>
           </div>
 
@@ -114,30 +151,11 @@ export function LandingView({ deleted, signedIn }: LandingViewProps) {
           </div>
         </section>
 
-        <section className="border-t border-[var(--line)] pt-14">
-          <h2 className="font-[family-name:var(--font-serif)] text-3xl tracking-tight text-[var(--ink)] sm:text-4xl">
-            {L.whatTitle}
-          </h2>
-          <p className="mt-3 max-w-2xl text-[var(--ink-muted)]">{L.whatIntro}</p>
-          <div className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((item, i) => (
-              <div key={item.title} className="relative pl-0">
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
-                  {String(i + 1).padStart(2, "0")}
-                </p>
-                <h3 className="font-[family-name:var(--font-serif)] text-xl tracking-tight">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--ink-muted)]">{item.body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-20 border-t border-[var(--line)] pt-14">
+        <section id="how-to" className="scroll-mt-8 border-t border-[var(--line)] pt-14">
           <h2 className="font-[family-name:var(--font-serif)] text-3xl tracking-tight text-[var(--ink)] sm:text-4xl">
             {L.howTitle}
           </h2>
+          <p className="mt-3 max-w-2xl text-[var(--ink-muted)]">{L.howIntro}</p>
           <ol className="mt-12 grid gap-8 sm:grid-cols-3">
             {steps.map((step, i) => (
               <li key={step.title} className="relative">
@@ -151,6 +169,64 @@ export function LandingView({ deleted, signedIn }: LandingViewProps) {
               </li>
             ))}
           </ol>
+        </section>
+
+        <section className="mt-20 border-t border-[var(--line)] pt-14">
+          <h2 className="font-[family-name:var(--font-serif)] text-3xl tracking-tight text-[var(--ink)] sm:text-4xl">
+            {L.setupTitle}
+          </h2>
+          <p className="mt-3 max-w-2xl text-[var(--ink-muted)]">{L.setupIntro}</p>
+          <ol className="mt-10 max-w-2xl space-y-4">
+            {setup.map((item, i) => (
+              <li
+                key={item}
+                className="flex gap-3 rounded-[1rem] border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5 shadow-[var(--shadow-sm)]"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-semibold text-white">
+                  {i + 1}
+                </span>
+                <span className="pt-0.5 text-sm leading-relaxed text-[var(--ink)]">{item}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="mt-20 border-t border-[var(--line)] pt-14">
+          <h2 className="font-[family-name:var(--font-serif)] text-3xl tracking-tight text-[var(--ink)] sm:text-4xl">
+            {L.commandsTitle}
+          </h2>
+          <p className="mt-3 max-w-2xl text-[var(--ink-muted)]">{L.commandsIntro}</p>
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {commands.map((cmd) => (
+              <GuideClip
+                key={cmd.id}
+                id={cmd.id}
+                title={cmd.title}
+                steps={cmd.steps}
+                videoSoon={L.videoSoon}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-20 border-t border-[var(--line)] pt-14">
+          <h2 className="font-[family-name:var(--font-serif)] text-3xl tracking-tight text-[var(--ink)] sm:text-4xl">
+            {L.whatTitle}
+          </h2>
+          <p className="mt-3 max-w-2xl text-[var(--ink-muted)]">{L.whatIntro}</p>
+          <div className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-3">
+            {features.map((item, i) => (
+              <div key={item.title}>
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">
+                  {String(i + 1).padStart(2, "0")}
+                </p>
+                <h3 className="font-[family-name:var(--font-serif)] text-xl tracking-tight">
+                  {item.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--ink-muted)]">{item.body}</p>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="mt-20 border-t border-[var(--line)] pt-14">

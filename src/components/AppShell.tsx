@@ -27,7 +27,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="vm-shell mx-auto flex min-h-screen max-w-6xl flex-col px-4 pb-28 pt-5 sm:px-6">
       <header className="mb-7 flex items-center justify-between gap-4">
-        <Link href="/app" className="group min-w-0">
+        <Link href="/?welcome=1#how-to" className="group min-w-0">
           <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-[var(--ink-muted)] transition group-hover:text-[var(--accent)]">
             {t.shell.brandKicker}
           </p>
