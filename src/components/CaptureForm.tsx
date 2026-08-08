@@ -824,7 +824,7 @@ export function CaptureForm() {
         </div>
 
         {(sourceUrl || source === "extension" || source === "share") && (
-          <div className="vm-card space-y-3 p-4">
+          <div className="space-y-3 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)]">
             <p className="vm-label mb-0">{c.sourcePage}</p>
             <input
               className="vm-input"
