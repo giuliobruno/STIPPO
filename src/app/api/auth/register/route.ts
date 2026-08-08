@@ -1,40 +1,56 @@
 import { NextResponse } from "next/server";
-import { hash } from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { hashPassword, passwordSchema } from "@/lib/password";
+import {
+  clientKey,
+  rateLimit,
+  rateLimitHeaders,
+  tooManyRequests,
+} from "@/lib/rate-limit";
 
 const schema = z.object({
   name: z.string().min(1).max(80),
-  email: z.string().email(),
-  password: z.string().min(8).max(100),
+  email: z.string().email().max(254),
+  password: passwordSchema,
 });
 
+const GENERIC_CONFLICT =
+  "Unable to create this account. Try signing in, or use a different email.";
+
 export async function POST(req: Request) {
+  const limited = rateLimit(clientKey(req, "register"), {
+    limit: 8,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!limited.ok) return tooManyRequests(limited);
+
   try {
     const body = await req.json();
     const data = schema.parse(body);
+    const email = data.email.toLowerCase().trim();
 
     const existing = await prisma.user.findUnique({
-      where: { email: data.email.toLowerCase() },
+      where: { email },
     });
     if (existing) {
+      // Avoid confirming which emails are registered.
       return NextResponse.json(
-        { error: "An account with this email already exists." },
-        { status: 409 }
+        { error: GENERIC_CONFLICT },
+        { status: 409, headers: rateLimitHeaders(limited) }
       );
     }
 
-    const passwordHash = await hash(data.password, 10);
+    const passwordHash = await hashPassword(data.password);
     const user = await prisma.user.create({
       data: {
-        name: data.name,
-        email: data.email.toLowerCase(),
+        name: data.name.trim(),
+        email,
         passwordHash,
       },
       select: { id: true, email: true, name: true },
     });
 
-    // Seed a sample project for the AEC workflow
     await prisma.project.create({
       data: {
         userId: user.id,
@@ -45,7 +61,10 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({ user }, { status: 201 });
+    return NextResponse.json(
+      { user },
+      { status: 201, headers: rateLimitHeaders(limited) }
+    );
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues[0]?.message }, { status: 400 });

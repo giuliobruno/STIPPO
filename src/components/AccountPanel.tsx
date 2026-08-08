@@ -239,11 +239,11 @@ export function AccountPanel() {
             />
             <PasswordInput
               id="new-password"
-              label="New password"
+              label="New password (10+ chars, letter + number)"
               value={newPassword}
               onValueChange={setNewPassword}
               required
-              minLength={8}
+              minLength={10}
               autoComplete="new-password"
             />
             <PasswordInput
@@ -252,7 +252,7 @@ export function AccountPanel() {
               value={confirmPassword}
               onValueChange={setConfirmPassword}
               required
-              minLength={8}
+              minLength={10}
               autoComplete="new-password"
             />
             <button type="submit" className="vm-btn-secondary" disabled={busy}>

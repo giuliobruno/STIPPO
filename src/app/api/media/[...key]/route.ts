@@ -16,8 +16,14 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   }
 
   const key = params.key.join("/");
-  // Ensure user can only read their own keys
-  if (!key.startsWith(session.user.id)) {
+  // Ensure user can only read their own keys; block path traversal
+  if (
+    !key.startsWith(`${session.user.id}/`) &&
+    key !== session.user.id
+  ) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (key.includes("..") || key.includes("\\") || key.startsWith("/")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -42,6 +48,8 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       headers: {
         "Content-Type": mime,
         "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "inline",
       },
     });
   } catch {

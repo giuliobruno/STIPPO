@@ -115,13 +115,33 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_...
 ## 4. Produzione (quando sei pronto)
 
 1. Hosting consigliato: **Vercel** (Next.js)  
-2. Imposta le **stesse variabili** del `.env` nel pannello Environment Variables  
-3. `NEXTAUTH_URL` = URL HTTPS  
-4. Aggiorna origins OAuth Google con il dominio prod  
-5. Deploy: collega il repo GitHub e deploy  
-6. Non caricare mai `.env` su GitHub
+2. Database: **Postgres** obbligatorio (SQLite `file:` è bloccato in prod)  
+3. Imposta le variabili nel pannello Environment Variables (vedi sotto)  
+4. `NEXTAUTH_URL` = URL HTTPS  
+5. Aggiorna origins OAuth Google con il dominio prod  
+6. Configura email reset (`RESEND_API_KEY` o SMTP) — senza mailer i reset non partono in prod  
+7. Deploy: collega il repo GitHub e deploy  
+8. Non caricare mai `.env` su GitHub
 
-Database auth/billing: in locale SQLite va bene; in prod preferisci Postgres (`DATABASE_URL`).
+### Env minime in produzione
+
+```
+DATABASE_URL=postgresql://...
+NEXTAUTH_URL=https://tuodominio
+NEXTAUTH_SECRET=<random ≥32 chars>
+OPENROUTER_API_KEY=...
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=...
+RESEND_API_KEY=...   # o SMTP_*
+```
+
+### Sicurezza già nel codice
+
+- Security headers + CSP (`src/middleware.ts`)
+- Rate limit su auth / AI
+- Upload media server disabilitati in prod (vault BYOS)
+- Token Drive/Dropbox cifrati in IndexedDB (non più plaintext in `localStorage`)
+- Reset password inline disabilitato in prod
+- Password: min 10 caratteri, lettera + numero, bcrypt cost 12
 
 ---
 
@@ -146,11 +166,12 @@ Database auth/billing: in locale SQLite va bene; in prod preferisci Postgres (`D
 ## Checklist rapida
 
 - [ ] `.env` creato da `.env.example`  
-- [ ] `NEXTAUTH_SECRET` impostato  
-- [ ] `OPENAI_API_KEY` impostata  
+- [ ] `NEXTAUTH_SECRET` impostato (≥32 caratteri in prod)  
+- [ ] `OPENROUTER_API_KEY` o `OPENAI_API_KEY`  
 - [ ] `NEXT_PUBLIC_GOOGLE_CLIENT_ID` + Drive API abilitata  
 - [ ] `pnpm dev` → signup → vault → capture → search  
-- [ ] (Prod) hosting + env + OAuth origins  
+- [ ] (Prod) Vercel + Postgres + env + OAuth origins  
+- [ ] (Prod) `RESEND_API_KEY` o SMTP per reset password  
 - [ ] (Opz) Stripe  
 - [ ] (Opz) Install PWA sul telefono  
 

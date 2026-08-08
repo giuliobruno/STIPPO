@@ -12,9 +12,22 @@ export function createRawToken() {
   return randomBytes(32).toString("hex");
 }
 
-/** True when no outbound mailer is configured — show one-time link in the UI. */
+/**
+ * True when no outbound mailer is configured — show one-time link in the UI.
+ * Disabled in production unless ALLOW_INLINE_RECOVERY=true (emergency / demos only).
+ */
 export function isInlineRecoveryEnabled() {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ALLOW_INLINE_RECOVERY !== "true"
+  ) {
+    return false;
+  }
   return !process.env.SMTP_HOST && !process.env.RESEND_API_KEY;
+}
+
+export function hasMailerConfigured() {
+  return Boolean(process.env.SMTP_HOST || process.env.RESEND_API_KEY);
 }
 
 export async function createPasswordResetToken(email: string) {

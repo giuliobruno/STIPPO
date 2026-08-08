@@ -77,10 +77,13 @@ export function SignupForm() {
         label="Password"
         value={password}
         onValueChange={setPassword}
-        minLength={8}
+        minLength={10}
         required
         autoComplete="new-password"
       />
+      <p className="text-xs text-[var(--ink-muted)]">
+        At least 10 characters, with a letter and a number.
+      </p>
       {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
       <button className="vm-btn-primary w-full" disabled={busy}>
         {busy ? "Creating…" : "Create account"}

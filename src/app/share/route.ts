@@ -2,6 +2,9 @@ import { CLIP_MESSAGE_TYPE } from "@/lib/media/clip-bridge";
 
 export const runtime = "nodejs";
 
+const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+
 /**
  * PWA Web Share Target endpoint.
  * Receives shared screenshots/images from the OS share sheet, then hands off
@@ -9,23 +12,28 @@ export const runtime = "nodejs";
  */
 export async function POST(req: Request) {
   const form = await req.formData();
-  const title = String(form.get("title") || "").trim();
-  const text = String(form.get("text") || form.get("note") || "").trim();
-  const url = String(form.get("url") || "").trim();
+  const title = String(form.get("title") || "").trim().slice(0, 200);
+  const text = String(form.get("text") || form.get("note") || "").trim().slice(0, 2000);
+  const url = String(form.get("url") || "").trim().slice(0, 2000);
   const file = pickSharedMedia(form);
 
   if (file) {
-    if (file.size > 80 * 1024 * 1024) {
-      return new Response("Shared file is too large (max 80MB).", {
-        status: 413,
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
-      });
+    const isVideo = file.type.startsWith("video/");
+    const max = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+    if (file.size > max) {
+      return new Response(
+        `Shared file is too large (max ${Math.round(max / (1024 * 1024))}MB).`,
+        {
+          status: 413,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        }
+      );
     }
 
     const bytes = Buffer.from(await file.arrayBuffer());
     const mime = file.type || "image/png";
+    // Chunk base64 into the page without keeping an extra string copy longer than needed
     const dataUrl = `data:${mime};base64,${bytes.toString("base64")}`;
-    const isVideo = mime.startsWith("video/");
 
     return htmlHandoff({
       dataUrl,
@@ -96,6 +104,7 @@ function htmlHandoff(payload: {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'" />
   <title>Opening Stippo…</title>
   <style>
     body { font: 15px/1.4 system-ui, sans-serif; background: #f3f1ec; color: #141414;
@@ -141,6 +150,8 @@ function htmlHandoff(payload: {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "no-referrer",
     },
   });
 }

@@ -5,6 +5,10 @@ import { assertCanCreateMemory, requireUser } from "@/lib/session";
 import { processMemory } from "@/lib/ai/pipeline";
 import { parseJsonArray, parseJsonObject } from "@/lib/utils";
 import { isProPlan } from "@/lib/stripe";
+import { serverMediaUploadsEnabled } from "@/lib/env";
+
+const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+const ALLOWED_UPLOAD_PREFIXES = ["image/", "audio/", "application/pdf"];
 
 export async function GET(req: NextRequest) {
   try {
@@ -34,6 +38,17 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
+
+    if (!serverMediaUploadsEnabled()) {
+      return NextResponse.json(
+        {
+          error:
+            "Server media uploads are disabled. Use the local work vault (BYOS) capture path.",
+        },
+        { status: 410 }
+      );
+    }
+
     const dbUser = await assertCanCreateMemory(user.id);
 
     const form = await req.formData();
@@ -61,6 +76,27 @@ export async function POST(req: NextRequest) {
         { error: "Provide an image/file and/or a voice transcript." },
         { status: 400 }
       );
+    }
+
+    if (file) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        return NextResponse.json(
+          { error: "File too large (max 12MB)." },
+          { status: 413 }
+        );
+      }
+      const mime = (file.type || "").toLowerCase();
+      if (
+        mime &&
+        !ALLOWED_UPLOAD_PREFIXES.some(
+          (p) => mime === p || (p.endsWith("/") && mime.startsWith(p))
+        )
+      ) {
+        return NextResponse.json(
+          { error: "Unsupported file type." },
+          { status: 415 }
+        );
+      }
     }
 
     const storage = getStorage();

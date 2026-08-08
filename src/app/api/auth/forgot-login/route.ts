@@ -1,45 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import {
+  clientKey,
+  rateLimit,
+  rateLimitHeaders,
+  tooManyRequests,
+} from "@/lib/rate-limit";
 
 const schema = z.object({
   email: z.string().email(),
 });
 
+/**
+ * Intentionally does not reveal whether an email is registered.
+ * Offers the same recovery guidance every time.
+ */
 export async function POST(req: NextRequest) {
+  const limited = rateLimit(clientKey(req, "forgot-login"), {
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!limited.ok) return tooManyRequests(limited);
+
   try {
-    const body = schema.parse(await req.json());
-    const email = body.email.toLowerCase().trim();
+    schema.parse(await req.json());
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true, passwordHash: true, accounts: { select: { provider: true } } },
-    });
-
-    if (!user) {
-      return NextResponse.json({
+    return NextResponse.json(
+      {
         ok: true,
-        found: false,
         message:
-          "No account uses that email. Check the spelling, try another address, or create a new account.",
-      });
-    }
-
-    const providers = user.accounts.map((a) => a.provider);
-    const hasPassword = Boolean(user.passwordHash);
-    const tips: string[] = [];
-    if (hasPassword) tips.push("You can sign in with email and password.");
-    if (providers.includes("google")) tips.push("You can also continue with Google.");
-    if (!hasPassword && providers.length) {
-      tips.push("This account has no password — use the social sign-in button on the login page.");
-    }
-
-    return NextResponse.json({
-      ok: true,
-      found: true,
-      message: `Yes — ${email} is a registered login.`,
-      tips,
-    });
+          "If that email is registered, you can sign in with your password or Google (if you linked it). Use Forgot password to reset a password login.",
+        tips: [
+          "Try signing in with the email and password you used at registration.",
+          "If you used Google, tap Continue with Google on the login page.",
+          "Forgot password sends a reset link when email delivery is configured.",
+        ],
+      },
+      { headers: rateLimitHeaders(limited) }
+    );
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues[0]?.message }, { status: 400 });

@@ -1,11 +1,18 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
-import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { verifyPassword } from "@/lib/password";
+
+const isProd = process.env.NODE_ENV === "production";
 
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // refresh claim daily
+  },
+  useSecureCookies: isProd,
   pages: {
     signIn: "/login",
   },
@@ -19,10 +26,10 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) return null;
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
+          where: { email: credentials.email.toLowerCase().trim() },
         });
         if (!user?.passwordHash) return null;
-        const ok = await compare(credentials.password, user.passwordHash);
+        const ok = await verifyPassword(credentials.password, user.passwordHash);
         if (!ok) return null;
         return {
           id: user.id,
@@ -37,6 +44,7 @@ export const authOptions: NextAuthOptions = {
           GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            allowDangerousEmailAccountLinking: false,
           }),
         ]
       : []),
@@ -44,16 +52,54 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === "google" && user.email) {
-        const existing = await prisma.user.findUnique({
-          where: { email: user.email.toLowerCase() },
-        });
-        if (!existing) {
-          await prisma.user.create({
+        const email = user.email.toLowerCase();
+        let dbUser = await prisma.user.findUnique({ where: { email } });
+        if (!dbUser) {
+          dbUser = await prisma.user.create({
             data: {
-              email: user.email.toLowerCase(),
+              email,
               name: user.name,
               image: user.image,
               emailVerified: new Date(),
+            },
+          });
+        }
+
+        // Persist Account link so provider-aware recovery works.
+        if (account.providerAccountId) {
+          await prisma.account.upsert({
+            where: {
+              provider_providerAccountId: {
+                provider: "google",
+                providerAccountId: account.providerAccountId,
+              },
+            },
+            create: {
+              userId: dbUser.id,
+              type: account.type,
+              provider: "google",
+              providerAccountId: account.providerAccountId,
+              access_token: account.access_token ?? null,
+              refresh_token: account.refresh_token ?? null,
+              expires_at: account.expires_at ?? null,
+              token_type: account.token_type ?? null,
+              scope: account.scope ?? null,
+              id_token: account.id_token ?? null,
+              session_state:
+                typeof account.session_state === "string"
+                  ? account.session_state
+                  : null,
+            },
+            update: {
+              access_token: account.access_token ?? null,
+              refresh_token: account.refresh_token ?? undefined,
+              expires_at: account.expires_at ?? null,
+              id_token: account.id_token ?? null,
+              scope: account.scope ?? null,
+              session_state:
+                typeof account.session_state === "string"
+                  ? account.session_state
+                  : null,
             },
           });
         }
@@ -67,30 +113,14 @@ export const authOptions: NextAuthOptions = {
         });
         if (dbUser) {
           token.uid = dbUser.id;
-          token.plan =
-            dbUser.plan === "pro" ||
-            dbUser.plan === "team" ||
-            dbUser.stripeStatus === "active" ||
-            dbUser.stripeStatus === "trialing"
-              ? dbUser.plan === "team"
-                ? "team"
-                : "pro"
-              : "free";
+          token.plan = resolvePlan(dbUser);
         }
       } else if (trigger === "update" && token.uid) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.uid as string },
         });
         if (dbUser) {
-          token.plan =
-            dbUser.plan === "pro" ||
-            dbUser.plan === "team" ||
-            dbUser.stripeStatus === "active" ||
-            dbUser.stripeStatus === "trialing"
-              ? dbUser.plan === "team"
-                ? "team"
-                : "pro"
-              : "free";
+          token.plan = resolvePlan(dbUser);
         }
       }
       return token;
@@ -104,3 +134,18 @@ export const authOptions: NextAuthOptions = {
     },
   },
 };
+
+function resolvePlan(dbUser: {
+  plan: string;
+  stripeStatus: string | null;
+}): "free" | "pro" | "team" {
+  if (
+    dbUser.plan === "pro" ||
+    dbUser.plan === "team" ||
+    dbUser.stripeStatus === "active" ||
+    dbUser.stripeStatus === "trialing"
+  ) {
+    return dbUser.plan === "team" ? "team" : "pro";
+  }
+  return "free";
+}

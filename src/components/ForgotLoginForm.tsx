@@ -10,7 +10,6 @@ export function ForgotLoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [tips, setTips] = useState<string[]>([]);
-  const [found, setFound] = useState<boolean | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -18,7 +17,6 @@ export function ForgotLoginForm() {
     setError(null);
     setMessage(null);
     setTips([]);
-    setFound(null);
     try {
       const res = await fetch("/api/auth/forgot-login", {
         method: "POST",
@@ -30,7 +28,6 @@ export function ForgotLoginForm() {
         setError(data.error || "Could not look up login");
         return;
       }
-      setFound(Boolean(data.found));
       setMessage(data.message || null);
       setTips(Array.isArray(data.tips) ? data.tips : []);
     } catch {
@@ -43,12 +40,12 @@ export function ForgotLoginForm() {
   return (
     <form onSubmit={onSubmit} className="mx-auto w-full max-w-md space-y-4">
       <p className="text-sm text-[var(--ink-muted)]">
-        Your login is the <strong>email address</strong> you used to register. Enter an
-        address to check whether it is registered on this server.
+        Your login is the <strong>email address</strong> you used to register. Enter it
+        below for sign-in options — we never confirm whether an address is registered.
       </p>
       <div>
         <label className="vm-label" htmlFor="lookup-email">
-          Email to check
+          Email
         </label>
         <input
           id="lookup-email"
@@ -62,13 +59,7 @@ export function ForgotLoginForm() {
       </div>
       {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
       {message ? (
-        <div
-          className={`rounded-xl border p-3 text-sm ${
-            found
-              ? "border-emerald-200 bg-emerald-50/60 text-[var(--ink)]"
-              : "border-[var(--line)] bg-[var(--paper-2)] text-[var(--ink)]"
-          }`}
-        >
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-2)] p-3 text-sm text-[var(--ink)]">
           <p>{message}</p>
           {tips.length ? (
             <ul className="mt-2 list-disc space-y-1 pl-5 text-[var(--ink-muted)]">
@@ -80,9 +71,9 @@ export function ForgotLoginForm() {
         </div>
       ) : null}
       <button className="vm-btn-primary w-full" disabled={busy}>
-        {busy ? "Checking…" : "Check login"}
+        {busy ? "Checking…" : "Show sign-in options"}
       </button>
-      {found ? (
+      {message ? (
         <div className="flex flex-col gap-2">
           <Link href="/login" className="vm-btn-secondary w-full text-center">
             Go to sign in

@@ -3,6 +3,12 @@ import type {
   VaultLocation,
   VaultSyncAdapter,
 } from "@/lib/vault/types";
+import {
+  migrateLegacyLocalStorage,
+  secureGet,
+  secureRemove,
+  secureSet,
+} from "@/lib/vault/secure-store";
 
 const TOKEN_KEY = "stippo_gdrive_token";
 const FOLDER_KEY = "stippo_gdrive_folder";
@@ -29,14 +35,16 @@ export function createGoogleDriveAdapter(): VaultSyncAdapter {
 
     async connect(): Promise<VaultLocation> {
       const token = await requestAccessToken();
-      saveToken(token);
+      await saveToken(token);
       const folder = await ensureStippoFolder(token.accessToken);
       folderId = folder.id;
       folderName = folder.name;
-      localStorage.setItem(
-        FOLDER_KEY,
-        JSON.stringify({ id: folder.id, name: folder.name })
-      );
+      await secureSet(FOLDER_KEY, { id: folder.id, name: folder.name });
+      try {
+        localStorage.removeItem(FOLDER_KEY);
+      } catch {
+        /* ignore */
+      }
       return {
         provider: "google_drive",
         folderId: folder.id,
@@ -46,16 +54,22 @@ export function createGoogleDriveAdapter(): VaultSyncAdapter {
     },
 
     async disconnect(): Promise<void> {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(FOLDER_KEY);
+      await secureRemove(TOKEN_KEY);
+      await secureRemove(FOLDER_KEY);
+      try {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(FOLDER_KEY);
+      } catch {
+        /* ignore */
+      }
       folderId = null;
       folderName = null;
     },
 
     async isConnected(): Promise<boolean> {
-      const t = loadToken();
+      const t = await loadToken();
       if (!t) return false;
-      const folder = loadFolder();
+      const folder = await loadFolder();
       if (folder) {
         folderId = folder.id;
         folderName = folder.name;
@@ -64,7 +78,7 @@ export function createGoogleDriveAdapter(): VaultSyncAdapter {
     },
 
     async getLocation(): Promise<VaultLocation | null> {
-      const folder = loadFolder();
+      const folder = await loadFolder();
       if (!folder) return null;
       return {
         provider: "google_drive",
@@ -195,7 +209,7 @@ export function createGoogleDriveAdapter(): VaultSyncAdapter {
 
   async function getRootFolderId(accessToken: string): Promise<string> {
     if (folderId) return folderId;
-    const saved = loadFolder();
+    const saved = await loadFolder();
     if (saved) {
       folderId = saved.id;
       return saved.id;
@@ -282,33 +296,33 @@ async function findChild(
   return json.files?.[0] || null;
 }
 
-function loadToken(): TokenBundle | null {
+async function loadToken(): Promise<TokenBundle | null> {
+  return migrateLegacyLocalStorage<TokenBundle>(TOKEN_KEY, TOKEN_KEY);
+}
+
+async function saveToken(token: TokenBundle) {
+  await secureSet(TOKEN_KEY, token);
   try {
-    const raw = localStorage.getItem(TOKEN_KEY);
-    return raw ? (JSON.parse(raw) as TokenBundle) : null;
+    localStorage.removeItem(TOKEN_KEY);
   } catch {
-    return null;
+    /* ignore */
   }
 }
 
-function saveToken(token: TokenBundle) {
-  localStorage.setItem(TOKEN_KEY, JSON.stringify(token));
-}
-
-function loadFolder(): { id: string; name: string } | null {
-  try {
-    const raw = localStorage.getItem(FOLDER_KEY);
-    return raw ? (JSON.parse(raw) as { id: string; name: string }) : null;
-  } catch {
-    return null;
-  }
+async function loadFolder(): Promise<{ id: string; name: string } | null> {
+  const migrated = await migrateLegacyLocalStorage<{ id: string; name: string }>(
+    FOLDER_KEY,
+    FOLDER_KEY
+  );
+  if (migrated) return migrated;
+  return secureGet<{ id: string; name: string }>(FOLDER_KEY);
 }
 
 async function getValidToken(): Promise<string> {
-  const t = loadToken();
+  const t = await loadToken();
   if (t && t.expiresAt > Date.now() + 60_000) return t.accessToken;
   const fresh = await requestAccessToken();
-  saveToken(fresh);
+  await saveToken(fresh);
   return fresh.accessToken;
 }
 

@@ -29,10 +29,15 @@ export default function PrivacyPage() {
           replace it via Forgot password on the sign-in page.
         </p>
         <p>
+          <strong>Cloud sync tokens:</strong> Google Drive / Dropbox access tokens are
+          encrypted in your browser (IndexedDB + AES-GCM) and are never sent to Stippo
+          servers. Full-resolution vault media stays on your device / your cloud folder
+          (BYOS).
+        </p>
+        <p>
           <strong>Originals by default:</strong> full-resolution files remain on the
-          capturing device unless you explicitly opt in (Pro) to sync originals. When
-          originals are not synced, the application and operators do not have access to
-          those local files.
+          capturing device and sync to <em>your</em> Drive/Dropbox folder. Stippo
+          servers do not store full-res vault media on the primary capture path.
         </p>
         <p>
           <strong>Cloud index:</strong> the searchable index (understanding + optional

@@ -3,6 +3,11 @@ import type {
   VaultLocation,
   VaultSyncAdapter,
 } from "@/lib/vault/types";
+import {
+  migrateLegacyLocalStorage,
+  secureRemove,
+  secureSet,
+} from "@/lib/vault/secure-store";
 
 const TOKEN_KEY = "stippo_dropbox_token";
 const FOLDER_KEY = "stippo_dropbox_folder";
@@ -42,7 +47,7 @@ export function createDropboxAdapter(): VaultSyncAdapter {
       if (code && pending) {
         const { verifier } = JSON.parse(pending) as { verifier: string };
         const token = await exchangeCode(appKey, code, verifier);
-        saveToken(token);
+        await saveToken(token);
         sessionStorage.removeItem(PKCE_KEY);
         // Clean URL
         const clean = new URL(window.location.href);
@@ -50,10 +55,12 @@ export function createDropboxAdapter(): VaultSyncAdapter {
         clean.searchParams.delete("state");
         window.history.replaceState({}, "", clean.pathname);
         await ensureRoot(token.accessToken);
-        localStorage.setItem(
-          FOLDER_KEY,
-          JSON.stringify({ id: ROOT, name: "Stippo" })
-        );
+        await secureSet(FOLDER_KEY, { id: ROOT, name: "Stippo" });
+        try {
+          localStorage.removeItem(FOLDER_KEY);
+        } catch {
+          /* ignore */
+        }
         return {
           provider: "dropbox",
           folderId: ROOT,
@@ -83,13 +90,19 @@ export function createDropboxAdapter(): VaultSyncAdapter {
     },
 
     async disconnect(): Promise<void> {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(FOLDER_KEY);
+      await secureRemove(TOKEN_KEY);
+      await secureRemove(FOLDER_KEY);
+      try {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(FOLDER_KEY);
+      } catch {
+        /* ignore */
+      }
       sessionStorage.removeItem(PKCE_KEY);
     },
 
     async isConnected(): Promise<boolean> {
-      const t = loadToken();
+      const t = await loadToken();
       return Boolean(t?.accessToken);
     },
 
@@ -265,7 +278,7 @@ async function exchangeCode(
 }
 
 async function getValidToken(): Promise<string> {
-  const t = loadToken();
+  const t = await loadToken();
   if (!t) throw new Error("Dropbox not connected");
   if (t.expiresAt > Date.now() + 60_000) return t.accessToken;
   if (!t.refreshToken) return t.accessToken; // hope still valid
@@ -293,21 +306,21 @@ async function getValidToken(): Promise<string> {
     refreshToken: json.refresh_token || t.refreshToken,
     accountId: t.accountId,
   };
-  saveToken(next);
+  await saveToken(next);
   return next.accessToken;
 }
 
-function loadToken(): TokenBundle | null {
-  try {
-    const raw = localStorage.getItem(TOKEN_KEY);
-    return raw ? (JSON.parse(raw) as TokenBundle) : null;
-  } catch {
-    return null;
-  }
+async function loadToken(): Promise<TokenBundle | null> {
+  return migrateLegacyLocalStorage<TokenBundle>(TOKEN_KEY, TOKEN_KEY);
 }
 
-function saveToken(token: TokenBundle) {
-  localStorage.setItem(TOKEN_KEY, JSON.stringify(token));
+async function saveToken(token: TokenBundle) {
+  await secureSet(TOKEN_KEY, token);
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 function randomString(length: number): string {
