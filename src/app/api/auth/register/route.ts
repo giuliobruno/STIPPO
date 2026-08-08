@@ -3,6 +3,13 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, passwordSchema } from "@/lib/password";
 import {
+  absoluteUrl,
+  createEmailVerificationToken,
+  hasMailerConfigured,
+  isInlineRecoveryEnabled,
+} from "@/lib/auth-recovery";
+import { emailVerificationEmail, sendMail } from "@/lib/mail";
+import {
   clientKey,
   rateLimit,
   rateLimitHeaders,
@@ -30,11 +37,20 @@ export async function POST(req: Request) {
     const data = schema.parse(body);
     const email = data.email.toLowerCase().trim();
 
+    if (!hasMailerConfigured() && !isInlineRecoveryEnabled()) {
+      return NextResponse.json(
+        {
+          error:
+            "Email delivery is not configured. Set RESEND_API_KEY (and EMAIL_FROM) before creating accounts.",
+        },
+        { status: 503, headers: rateLimitHeaders(limited) }
+      );
+    }
+
     const existing = await prisma.user.findUnique({
       where: { email },
     });
     if (existing) {
-      // Avoid confirming which emails are registered.
       return NextResponse.json(
         { error: GENERIC_CONFLICT },
         { status: 409, headers: rateLimitHeaders(limited) }
@@ -47,6 +63,7 @@ export async function POST(req: Request) {
         name: data.name.trim(),
         email,
         passwordHash,
+        emailVerified: null,
       },
       select: { id: true, email: true, name: true },
     });
@@ -61,8 +78,50 @@ export async function POST(req: Request) {
       },
     });
 
+    const { rawToken } = await createEmailVerificationToken(email);
+    const verifyUrl = absoluteUrl(`/verify-email?token=${rawToken}`);
+    const mail = emailVerificationEmail(verifyUrl, user.name);
+
+    if (isInlineRecoveryEnabled()) {
+      console.info(`[auth] Email verification link for ${email}: ${verifyUrl}`);
+      return NextResponse.json(
+        {
+          ok: true,
+          requiresVerification: true,
+          message:
+            "Account created. Email delivery is not configured — use the verification link below.",
+          inline: true,
+          verifyUrl,
+          email,
+        },
+        { status: 201, headers: rateLimitHeaders(limited) }
+      );
+    }
+
+    try {
+      await sendMail({ to: email, ...mail });
+    } catch (err) {
+      console.error("[auth] Failed to send verification email", err);
+      return NextResponse.json(
+        {
+          ok: true,
+          requiresVerification: true,
+          message:
+            "Account created, but we could not send the confirmation email. Use Resend verification from the check-email page.",
+          email,
+          sendFailed: true,
+        },
+        { status: 201, headers: rateLimitHeaders(limited) }
+      );
+    }
+
     return NextResponse.json(
-      { user },
+      {
+        ok: true,
+        requiresVerification: true,
+        message: "Check your inbox to confirm your email before signing in.",
+        email,
+      },
       { status: 201, headers: rateLimitHeaders(limited) }
     );
   } catch (err) {

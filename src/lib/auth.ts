@@ -48,6 +48,10 @@ export const authOptions: NextAuthOptions = {
         if (!user?.passwordHash) return null;
         const ok = await verifyPassword(credentials.password, user.passwordHash);
         if (!ok) return null;
+        if (!user.emailVerified) {
+          // Surfaced to the client as res.error === "EMAIL_NOT_VERIFIED"
+          throw new Error("EMAIL_NOT_VERIFIED");
+        }
         return {
           id: user.id,
           email: user.email,

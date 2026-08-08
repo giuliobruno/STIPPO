@@ -11,12 +11,14 @@ export function LoginForm({ resetOk = false }: { resetOk?: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [needsVerify, setNeedsVerify] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setNeedsVerify(false);
     const res = await signIn("credentials", {
       email,
       password,
@@ -24,6 +26,11 @@ export function LoginForm({ resetOk = false }: { resetOk?: boolean }) {
     });
     setBusy(false);
     if (res?.error) {
+      if (res.error === "EMAIL_NOT_VERIFIED") {
+        setNeedsVerify(true);
+        setError("Confirm your email before signing in.");
+        return;
+      }
       setError("Invalid email or password");
       return;
     }
@@ -75,6 +82,14 @@ export function LoginForm({ resetOk = false }: { resetOk?: boolean }) {
         </Link>
       </div>
       {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
+      {needsVerify ? (
+        <Link
+          href={`/check-email?email=${encodeURIComponent(email)}`}
+          className="vm-btn-secondary w-full text-center"
+        >
+          Resend confirmation email
+        </Link>
+      ) : null}
       <button className="vm-btn-primary w-full" disabled={busy}>
         {busy ? "Signing in…" : "Sign in"}
       </button>

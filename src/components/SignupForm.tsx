@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PasswordInput } from "@/components/PasswordInput";
@@ -24,23 +23,19 @@ export function SignupForm() {
       body: JSON.stringify({ name, email, password }),
     });
     const data = await res.json();
+    setBusy(false);
     if (!res.ok) {
-      setBusy(false);
       setError(data.error || "Could not create account");
       return;
     }
-    const login = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
-    setBusy(false);
-    if (login?.error) {
-      setError("Account created — please sign in");
-      router.push("/login");
-      return;
+
+    const params = new URLSearchParams();
+    params.set("email", data.email || email);
+    if (data.inline && data.verifyUrl) {
+      params.set("inline", "1");
+      params.set("verifyUrl", data.verifyUrl);
     }
-    router.push("/app");
+    router.push(`/check-email?${params.toString()}`);
     router.refresh();
   }
 
@@ -82,7 +77,8 @@ export function SignupForm() {
         autoComplete="new-password"
       />
       <p className="text-xs text-[var(--ink-muted)]">
-        At least 10 characters, with a letter and a number.
+        At least 10 characters, with a letter and a number. We’ll email a confirmation
+        link before you can sign in.
       </p>
       {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
       <button className="vm-btn-primary w-full" disabled={busy}>

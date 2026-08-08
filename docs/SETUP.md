@@ -101,18 +101,30 @@ GOOGLE_CLIENT_SECRET=...
 
 Solo se vuoi “Sign in with Google” (non serve per la sync Drive del vault).
 
-### E) Email reset password (consigliato già in locale; obbligatorio in prod)
+### E) Email — Resend (obbligatorio per signup + reset)
 
-**Resend** (semplice):
+La registrazione richiede **conferma email**. Senza Resend (o SMTP) non si completa il flusso in produzione.
 
-1. https://resend.com → API key  
-2. Verifica il dominio (in dev puoi usare `onboarding@resend.dev`)  
-3. In `.env`:
+**Resend + dominio (anti-spam):**
+
+1. https://resend.com → crea API key  
+2. **Domains → Add** `stippo.app`  
+3. Copia i record DNS che Resend mostra (SPF, DKIM, e se c’è DMARC) in **Cloudflare → DNS**  
+4. Aspetta stato **Verified** in Resend  
+5. In `.env` / Vercel:
 
 ```
-RESEND_API_KEY="re_..."
-EMAIL_FROM="Stippo <noreply@tuodominio.com>"
+RESEND_API_KEY=re_...
+EMAIL_FROM=Stippo <noreply@stippo.app>
+EMAIL_REPLY_TO=hello@stippo.app
 ```
+
+**Perché non vada in spam:**
+- Usa un `EMAIL_FROM` sul dominio **verificato** (non `gmail.com`, non solo `resend.dev` in prod)
+- Lascia SPF/DKIM/DMARC attivi in Cloudflare
+- Evita di mandare migliaia di mail subito; parti con utenti reali
+
+In locale senza Resend puoi usare `ALLOW_INLINE_RECOVERY=true` per vedere il link di verifica in UI.
 
 ### F) Stripe Pro (quando vuoi abbonamenti)
 
@@ -149,12 +161,13 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_...
 
 ```
 DATABASE_URL=postgresql://...
-NEXTAUTH_URL=https://tuodominio-o-xxx.vercel.app
+NEXTAUTH_URL=https://www.stippo.app
 NEXTAUTH_SECRET=<random ≥32 chars>
 OPENROUTER_API_KEY=...
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=...
-RESEND_API_KEY=...
-EMAIL_FROM=Stippo <noreply@tuodominio.com>
+RESEND_API_KEY=re_...
+EMAIL_FROM=Stippo <noreply@stippo.app>
+EMAIL_REPLY_TO=hello@stippo.app
 ```
 
 4. Deploy — il build esegue `prisma migrate deploy` automaticamente  
