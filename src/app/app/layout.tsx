@@ -8,7 +8,13 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession(authOptions);
+  let session = null;
+  try {
+    session = await getServerSession(authOptions);
+  } catch (err) {
+    console.error("[app/layout] getServerSession failed", err);
+    redirect("/login");
+  }
   if (!session?.user) redirect("/login");
 
   return <AppShell>{children}</AppShell>;

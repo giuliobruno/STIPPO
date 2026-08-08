@@ -4,7 +4,7 @@ import { LoginForm } from "@/components/LoginForm";
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: { reset?: string };
+  searchParams?: { reset?: string };
 }) {
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 py-12">
@@ -18,7 +18,7 @@ export default function LoginPage({
       <p className="mt-2 mb-8 text-sm text-[var(--ink-muted)]">
         Sign in to your project reference brain.
       </p>
-      <LoginForm resetOk={searchParams.reset === "1"} />
+      <LoginForm resetOk={searchParams?.reset === "1"} />
     </div>
   );
 }

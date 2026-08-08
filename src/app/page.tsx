@@ -8,8 +8,13 @@ export default async function LandingPage({
 }: {
   searchParams?: { deleted?: string };
 }) {
-  const session = await getServerSession(authOptions);
-  if (session?.user) redirect("/app");
+  try {
+    const session = await getServerSession(authOptions);
+    if (session?.user) redirect("/app");
+  } catch (err) {
+    // Never take down the marketing page if session/auth misconfigured.
+    console.error("[landing] getServerSession failed", err);
+  }
 
   return (
     <div className="min-h-screen">

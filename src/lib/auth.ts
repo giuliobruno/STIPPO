@@ -1,12 +1,28 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
-import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 
 const isProd = process.env.NODE_ENV === "production";
 
+function resolvePlan(dbUser: {
+  plan: string;
+  stripeStatus: string | null;
+}): "free" | "pro" | "team" {
+  if (
+    dbUser.plan === "pro" ||
+    dbUser.plan === "team" ||
+    dbUser.stripeStatus === "active" ||
+    dbUser.stripeStatus === "trialing"
+  ) {
+    return dbUser.plan === "team" ? "team" : "pro";
+  }
+  return "free";
+}
+
 export const authOptions: NextAuthOptions = {
+  // Explicit secret — required in production; avoids opaque 500s when env is missing.
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
@@ -25,6 +41,7 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) return null;
+        const { prisma } = await import("@/lib/prisma");
         const user = await prisma.user.findUnique({
           where: { email: credentials.email.toLowerCase().trim() },
         });
@@ -52,6 +69,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === "google" && user.email) {
+        const { prisma } = await import("@/lib/prisma");
         const email = user.email.toLowerCase();
         let dbUser = await prisma.user.findUnique({ where: { email } });
         if (!dbUser) {
@@ -65,7 +83,6 @@ export const authOptions: NextAuthOptions = {
           });
         }
 
-        // Persist Account link so provider-aware recovery works.
         if (account.providerAccountId) {
           await prisma.account.upsert({
             where: {
@@ -107,6 +124,7 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     async jwt({ token, user, trigger }) {
+      const { prisma } = await import("@/lib/prisma");
       if (user?.email) {
         const dbUser = await prisma.user.findUnique({
           where: { email: user.email.toLowerCase() },
@@ -134,18 +152,3 @@ export const authOptions: NextAuthOptions = {
     },
   },
 };
-
-function resolvePlan(dbUser: {
-  plan: string;
-  stripeStatus: string | null;
-}): "free" | "pro" | "team" {
-  if (
-    dbUser.plan === "pro" ||
-    dbUser.plan === "team" ||
-    dbUser.stripeStatus === "active" ||
-    dbUser.stripeStatus === "trialing"
-  ) {
-    return dbUser.plan === "team" ? "team" : "pro";
-  }
-  return "free";
-}

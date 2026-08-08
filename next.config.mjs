@@ -4,8 +4,8 @@
  */
 function resolveAuthUrl() {
   let raw =
-    process.env.NEXTAUTH_URL?.trim() ||
-    process.env.AUTH_URL?.trim() ||
+    process.env.NEXTAUTH_URL?.trim().replace(/^["']|["']$/g, "") ||
+    process.env.AUTH_URL?.trim().replace(/^["']|["']$/g, "") ||
     process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim() ||
     process.env.VERCEL_URL?.trim() ||
     "http://localhost:3000";
