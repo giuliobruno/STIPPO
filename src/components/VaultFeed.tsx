@@ -11,8 +11,12 @@ import {
 } from "@/lib/vault";
 import { processSyncQueue, pullVaultIndex } from "@/lib/vault/sync";
 import type { VaultMemory, VaultMeta } from "@/lib/vault/types";
+import { fill, useLocale, useT } from "@/i18n";
 
 export function VaultFeed({ projectId }: { projectId?: string }) {
+  const t = useT();
+  const { locale } = useLocale();
+  const f = t.feed;
   const [memories, setMemories] = useState<VaultMemory[]>([]);
   const [meta, setMeta] = useState<VaultMeta | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,12 +43,12 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
       const result = await processSyncQueue();
       setMessage(
         result.processed
-          ? `Synced ${result.processed} item(s).`
-          : result.errors[0] || "Nothing to sync."
+          ? fill(f.syncedItems, { count: result.processed })
+          : result.errors[0] || f.nothingToSync
       );
       await reload();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Sync failed");
+      setMessage(err instanceof Error ? err.message : f.syncFailed);
     } finally {
       setBusy(false);
     }
@@ -55,10 +59,12 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
     setMessage(null);
     try {
       const { imported } = await pullVaultIndex();
-      setMessage(imported ? `Imported ${imported} memories from cloud.` : "No remote index found.");
+      setMessage(
+        imported ? fill(f.imported, { count: imported }) : f.noRemote
+      );
       await reload();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Pull failed");
+      setMessage(err instanceof Error ? err.message : f.pullFailed);
     } finally {
       setBusy(false);
     }
@@ -69,14 +75,17 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
       ? meta.cloudFolderName || meta.cloudProvider
       : null;
 
+  const subtitle = fill(
+    memories.length === 1 ? f.subtitleOne : f.subtitleMany,
+    { count: memories.length }
+  );
+
   return (
     <div className="vm-section">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="vm-page-title">Work vault</h2>
-          <p className="vm-page-sub">
-            {memories.length} reference{memories.length === 1 ? "" : "s"} · separate from personal photos
-          </p>
+          <h2 className="vm-page-title">{f.title}</h2>
+          <p className="vm-page-sub">{subtitle}</p>
           <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[var(--ink-muted)]">
             {cloudLabel ? (
               <span className="inline-flex max-w-full items-start gap-1.5 rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 text-[var(--accent)]">
@@ -84,7 +93,9 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
                 <span className="min-w-0 break-all font-mono text-[11px]">
                   {meta?.cloudFolderPath || cloudLabel}
                   {meta?.lastSyncAt
-                    ? ` · synced ${new Date(meta.lastSyncAt).toLocaleString()}`
+                    ? fill(f.syncedAt, {
+                        when: new Date(meta.lastSyncAt).toLocaleString(locale),
+                      })
                     : ""}
                 </span>
               </span>
@@ -94,7 +105,7 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
                 className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-[var(--accent)]/40 bg-[var(--accent-soft)]/60 px-2.5 py-1 font-medium text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
               >
                 <CloudOff className="h-3.5 w-3.5" />
-                Choose vault folder
+                {f.chooseFolder}
               </Link>
             )}
           </div>
@@ -107,7 +118,7 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
             onClick={() => void syncNow()}
           >
             <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
-            Sync
+            {f.sync}
           </button>
           <button
             type="button"
@@ -115,10 +126,10 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
             disabled={busy}
             onClick={() => void pullRemote()}
           >
-            Pull
+            {f.pull}
           </button>
           <Link href="/app/capture" className="vm-btn-primary hidden sm:inline-flex">
-            + Capture
+            {f.capture}
           </Link>
         </div>
       </div>
@@ -136,19 +147,18 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
           </div>
           <div>
             <h3 className="font-[family-name:var(--font-serif)] text-2xl tracking-tight">
-              Vault is empty
+              {f.emptyTitle}
             </h3>
             <p className="mt-2 max-w-md text-sm leading-relaxed text-[var(--ink-muted)]">
-              Use the in-app camera for project references. They stay out of your
-              personal album and sync to the cloud folder you choose.
+              {f.emptyBody}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/app/capture" className="vm-btn-primary">
-              Open Capture
+              {f.openCapture}
             </Link>
             <Link href="/app/vault" className="vm-btn-secondary">
-              Set up vault
+              {f.setUpVault}
             </Link>
           </div>
         </div>
