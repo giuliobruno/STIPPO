@@ -1,121 +1,30 @@
-import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
+import { LandingView } from "@/components/LandingView";
 
 export default async function LandingPage({
   searchParams,
 }: {
-  searchParams?: { deleted?: string };
+  searchParams?: { deleted?: string; welcome?: string };
 }) {
+  const showLandingAnyway = searchParams?.welcome === "1";
+  let signedIn = false;
+
   try {
     const session = await getServerSession(authOptions);
-    if (session?.user) redirect("/app");
+    signedIn = Boolean(session?.user);
+    // Registered users skip the landing on app open; title click uses ?welcome=1
+    if (signedIn && !showLandingAnyway) redirect("/app");
   } catch (err) {
     // Never take down the marketing page if session/auth misconfigured.
     console.error("[landing] getServerSession failed", err);
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-6 pb-16 pt-8">
-        <header className="flex items-center justify-between">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--ink-muted)]">
-            Visual Memory
-          </p>
-          <div className="flex gap-2">
-            <Link href="/login" className="vm-btn-ghost">
-              Sign in
-            </Link>
-            <Link href="/signup" className="vm-btn-primary">
-              Start free
-            </Link>
-          </div>
-        </header>
-
-        {searchParams?.deleted === "1" ? (
-          <p className="mt-6 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--ink-muted)]">
-            Your account and associated data have been deleted.
-          </p>
-        ) : null}
-
-        <section className="flex flex-1 flex-col justify-center py-16">
-          <p className="mb-4 text-sm font-medium text-[var(--accent)]">
-            For architects & interior designers
-          </p>
-          <h1 className="max-w-3xl font-[family-name:var(--font-serif)] text-5xl leading-[1.05] tracking-tight text-[var(--ink)] sm:text-6xl md:text-7xl">
-            Your project archive. On your Drive. Finally findable.
-          </h1>
-          <p className="mt-6 max-w-xl text-lg text-[var(--ink-muted)]">
-            Capture work photos in-app — separate from birthday photos. AI tags
-            every reference. Sync lives on <em>your</em> Google Drive or OneDrive.
-          </p>
-          <div className="mt-10 flex flex-wrap gap-3">
-            <Link href="/signup" className="vm-btn-primary !px-6 !py-3.5 text-base">
-              Start your work vault
-            </Link>
-            <Link href="/login" className="vm-btn-secondary !px-6 !py-3.5 text-base">
-              I already have an account
-            </Link>
-          </div>
-        </section>
-
-        <section className="grid gap-6 border-t border-[var(--line)] pt-12 sm:grid-cols-3">
-          {[
-            {
-              title: "Camera in-app = work only",
-              body: "References never mix with personal albums. Clip, snapshot, or short video — all tagged.",
-            },
-            {
-              title: "Vision at ingest",
-              body: "Search “wooden stairs” even if you never said the words — AI reads the image once.",
-            },
-            {
-              title: "BYOS — your folder",
-              body: "Pick a folder inside Drive, Dropbox, or OneDrive. Their desktop app syncs it — no API keys.",
-            },
-          ].map((item) => (
-            <div key={item.title}>
-              <h3 className="font-[family-name:var(--font-serif)] text-xl">{item.title}</h3>
-              <p className="mt-2 text-sm text-[var(--ink-muted)]">{item.body}</p>
-            </div>
-          ))}
-        </section>
-
-        <section className="mt-16 rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-8 sm:p-10">
-          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--ink-muted)]">
-            Pricing
-          </p>
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            {[
-              { name: "Free", price: "€0", detail: "100 memories · vision tags · 1 cloud" },
-              { name: "Pro", price: "$15/mo", detail: "Unlimited · video · multi-device sync" },
-              { name: "Studio", price: "$49/user", detail: "Shared Drive folder · team (soon)" },
-            ].map((tier) => (
-              <div key={tier.name} className="rounded-2xl border border-[var(--line)] p-5">
-                <p className="text-sm text-[var(--ink-muted)]">{tier.name}</p>
-                <p className="mt-1 font-[family-name:var(--font-serif)] text-3xl">{tier.price}</p>
-                <p className="mt-2 text-sm text-[var(--ink-muted)]">{tier.detail}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <footer className="mt-16 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-8 text-sm text-[var(--ink-muted)]">
-          <p>© {new Date().getFullYear()} Visual Memory</p>
-          <div className="flex flex-wrap gap-4">
-            <Link href="/privacy" className="hover:text-[var(--ink)]">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-[var(--ink)]">
-              Terms
-            </Link>
-            <Link href="/disclaimer" className="hover:text-[var(--ink)]">
-              Disclaimers
-            </Link>
-          </div>
-        </footer>
-      </div>
-    </div>
+    <LandingView
+      deleted={searchParams?.deleted === "1"}
+      signedIn={signedIn}
+    />
   );
 }

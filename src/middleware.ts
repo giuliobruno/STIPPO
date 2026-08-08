@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+  countryFromHeaders,
+  GEO_LOCALE_COOKIE,
+  localeFromCountry,
+} from "@/lib/geo-locale";
 
 /**
  * Global security headers + light edge rate damping for auth/AI abuse paths.
@@ -40,7 +45,7 @@ function buildCsp(): string {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    "connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://api.dropboxapi.com https://content.dropboxapi.com https://*.dropboxapi.com https://api.stripe.com https://openrouter.ai https://api.openai.com",
+    "connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://api.dropboxapi.com https://content.dropboxapi.com https://*.dropboxapi.com https://api.stripe.com https://openrouter.ai https://api.openai.com https://api.country.is",
     "frame-src 'self' https://accounts.google.com https://js.stripe.com",
     "worker-src 'self' blob:",
     "media-src 'self' blob: data:",
@@ -76,6 +81,20 @@ export function middleware(req: NextRequest) {
   }
 
   const res = NextResponse.next();
+
+  // Suggest UI locale from edge country (IP geo). Client may still override.
+  if (!req.cookies.get(GEO_LOCALE_COOKIE)?.value) {
+    const country = countryFromHeaders(req.headers);
+    if (country && country !== "XX" && country !== "T1") {
+      res.cookies.set(GEO_LOCALE_COOKIE, localeFromCountry(country), {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      });
+    }
+  }
+
   const headers = res.headers;
 
   headers.set("Content-Security-Policy", buildCsp());

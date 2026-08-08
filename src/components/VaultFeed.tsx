@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Cloud, CloudOff, RefreshCw } from "lucide-react";
+import { Camera, Cloud, CloudOff, RefreshCw } from "lucide-react";
 import { MemoryCard } from "@/components/MemoryCard";
 import {
   initVault,
@@ -70,20 +70,18 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
       : null;
 
   return (
-    <div className="space-y-6">
+    <div className="vm-section">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 className="font-[family-name:var(--font-serif)] text-3xl">
-            Work vault
-          </h2>
-          <p className="mt-1 text-sm text-[var(--ink-muted)]">
+        <div className="min-w-0">
+          <h2 className="vm-page-title">Work vault</h2>
+          <p className="vm-page-sub">
             {memories.length} reference{memories.length === 1 ? "" : "s"} · separate from personal photos
           </p>
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--ink-muted)]">
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[var(--ink-muted)]">
             {cloudLabel ? (
-              <span className="inline-flex max-w-full items-start gap-1 text-[var(--accent)]">
+              <span className="inline-flex max-w-full items-start gap-1.5 rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 text-[var(--accent)]">
                 <Cloud className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                <span className="min-w-0 break-all font-mono">
+                <span className="min-w-0 break-all font-mono text-[11px]">
                   {meta?.cloudFolderPath || cloudLabel}
                   {meta?.lastSyncAt
                     ? ` · synced ${new Date(meta.lastSyncAt).toLocaleString()}`
@@ -93,7 +91,7 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
             ) : (
               <Link
                 href="/app/vault"
-                className="inline-flex items-center gap-1 text-[var(--accent)]"
+                className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-[var(--accent)]/40 bg-[var(--accent-soft)]/60 px-2.5 py-1 font-medium text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
               >
                 <CloudOff className="h-3.5 w-3.5" />
                 Choose vault folder
@@ -126,20 +124,25 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
       </div>
 
       {message ? (
-        <p className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink-muted)]">
+        <p className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3.5 py-2.5 text-sm text-[var(--ink-muted)]">
           {message}
         </p>
       ) : null}
 
       {memories.length === 0 ? (
-        <div className="vm-card flex flex-col items-start gap-4 p-8">
-          <h3 className="font-[family-name:var(--font-serif)] text-2xl">
-            Vault is empty
-          </h3>
-          <p className="max-w-md text-sm text-[var(--ink-muted)]">
-            Use the in-app camera for project references. They stay out of your
-            personal album and sync to the cloud folder you choose.
-          </p>
+        <div className="vm-empty">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
+            <Camera className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-[family-name:var(--font-serif)] text-2xl tracking-tight">
+              Vault is empty
+            </h3>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-[var(--ink-muted)]">
+              Use the in-app camera for project references. They stay out of your
+              personal album and sync to the cloud folder you choose.
+            </p>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/app/capture" className="vm-btn-primary">
               Open Capture

@@ -8,14 +8,18 @@ import {
   Cloud,
   CreditCard,
   FileText,
+  Languages,
   LogOut,
   Scale,
   Shield,
   UserRound,
 } from "lucide-react";
+import { fill, localeLabels, locales, useLocale, useT, type Locale } from "@/i18n";
 
 export function UserMenu() {
   const { data } = useSession();
+  const { locale, setLocale } = useLocale();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -54,7 +58,7 @@ export function UserMenu() {
         <span className="hidden min-w-0 sm:block">
           <span className="block truncate text-sm font-medium leading-tight">{name}</span>
           <span className="block truncate text-[11px] capitalize text-[var(--ink-muted)]">
-            {plan} plan
+            {fill(t.menu.plan, { plan })}
           </span>
         </span>
         <ChevronDown
@@ -71,24 +75,48 @@ export function UserMenu() {
             <p className="truncate text-sm font-medium">{name}</p>
             <p className="truncate text-xs text-[var(--ink-muted)]">{email}</p>
           </div>
+          <div className="border-b border-[var(--line)] px-3 py-2.5">
+            <p className="mb-1.5 flex items-center gap-1.5 px-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--ink-muted)]">
+              <Languages className="h-3.5 w-3.5" />
+              {t.menu.language}
+            </p>
+            <div className="grid grid-cols-3 gap-1">
+              {locales.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={locale === code}
+                  className={`rounded-lg px-1.5 py-1.5 text-xs font-medium transition ${
+                    locale === code
+                      ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                      : "text-[var(--ink-muted)] hover:bg-[var(--paper-2)] hover:text-[var(--ink)]"
+                  }`}
+                  onClick={() => setLocale(code as Locale)}
+                >
+                  {localeLabels[code]}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="p-1.5">
             <MenuLink href="/app/account" icon={UserRound} onClick={() => setOpen(false)}>
-              Account & security
+              {t.menu.account}
             </MenuLink>
             <MenuLink href="/app/vault" icon={Cloud} onClick={() => setOpen(false)}>
-              Dove salvare le foto
+              {t.menu.vault}
             </MenuLink>
             <MenuLink href="/app/billing" icon={CreditCard} onClick={() => setOpen(false)}>
-              Subscription
+              {t.menu.billing}
             </MenuLink>
             <MenuLink href="/privacy" icon={Shield} onClick={() => setOpen(false)}>
-              Privacy
+              {t.menu.privacy}
             </MenuLink>
             <MenuLink href="/terms" icon={FileText} onClick={() => setOpen(false)}>
-              Terms of use
+              {t.menu.terms}
             </MenuLink>
             <MenuLink href="/disclaimer" icon={Scale} onClick={() => setOpen(false)}>
-              Disclaimers
+              {t.menu.disclaimer}
             </MenuLink>
           </div>
           <div className="border-t border-[var(--line)] p-1.5">
@@ -99,7 +127,7 @@ export function UserMenu() {
               onClick={() => signOut({ callbackUrl: "/" })}
             >
               <LogOut className="h-4 w-4" />
-              Sign out
+              {t.menu.signOut}
             </button>
           </div>
         </div>

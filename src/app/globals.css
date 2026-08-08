@@ -3,16 +3,23 @@
 @tailwind utilities;
 
 :root {
-  --paper: #f3f1ec;
-  --paper-2: #ebe7df;
-  --ink: #141414;
-  --ink-muted: #5c5a56;
-  --line: #d9d4cb;
-  --surface: #fffcf7;
-  --accent: #1e3a5f;
-  --accent-soft: #e8eef5;
+  --paper: #f2f0eb;
+  --paper-2: #e8e4db;
+  --ink: #12141a;
+  --ink-muted: #5a5854;
+  --line: #d4cfc4;
+  --surface: #fffcf8;
+  --accent: #1a3354;
+  --accent-hover: #142840;
+  --accent-soft: #e6eef7;
   --ok: #2f5d50;
   --danger: #8b3a3a;
+  --shadow-sm: 0 1px 2px rgba(18, 20, 26, 0.04);
+  --shadow-md: 0 8px 28px rgba(18, 20, 26, 0.07);
+  --shadow-nav: 0 10px 36px rgba(18, 20, 26, 0.1);
+  --radius-sm: 0.75rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.25rem;
 }
 
 html,
@@ -23,9 +30,9 @@ body {
 body {
   color: var(--ink);
   background:
-    radial-gradient(1200px 600px at 10% -10%, #e8eef5 0%, transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, #efe8dc 0%, transparent 50%),
-    var(--paper);
+    radial-gradient(1100px 560px at 8% -8%, #e4ecf6 0%, transparent 58%),
+    radial-gradient(820px 480px at 96% 4%, #ece4d6 0%, transparent 52%),
+    linear-gradient(180deg, #f5f3ee 0%, var(--paper) 40%, #efebe3 100%);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -35,31 +42,39 @@ body {
   }
 
   .vm-card {
-    @apply rounded-2xl border bg-[var(--surface)] border-[var(--line)] overflow-hidden transition;
+    @apply overflow-hidden rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--surface)] transition duration-200;
+    box-shadow: var(--shadow-sm);
   }
 
   .vm-card:hover {
-    border-color: #c4bdb0;
+    border-color: #c5beb0;
+  }
+
+  .vm-card-interactive:hover {
+    border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
   }
 
   .vm-btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-2 rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-medium transition duration-150 active:scale-[0.98];
   }
 
   .vm-btn-primary {
-    @apply vm-btn bg-[var(--accent)] text-white hover:bg-[#17304f];
+    @apply vm-btn bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)];
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
   }
 
   .vm-btn-secondary {
-    @apply vm-btn bg-white border border-[var(--line)] text-[var(--ink)] hover:bg-[var(--paper-2)];
+    @apply vm-btn border border-[var(--line)] bg-white text-[var(--ink)] hover:bg-[var(--paper-2)];
   }
 
   .vm-btn-ghost {
-    @apply vm-btn text-[var(--ink-muted)] hover:bg-black/5 hover:text-[var(--ink)];
+    @apply vm-btn text-[var(--ink-muted)] hover:bg-black/[0.04] hover:text-[var(--ink)];
   }
 
   .vm-input {
-    @apply w-full rounded-xl border border-[var(--line)] bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[var(--accent)];
+    @apply w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-[var(--accent)];
   }
 
   .vm-input::placeholder {
@@ -68,7 +83,7 @@ body {
   }
 
   .vm-input:focus {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
   }
 
   .vm-label {
@@ -77,5 +92,82 @@ body {
 
   .vm-chip {
     @apply inline-flex items-center rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent)];
+  }
+
+  .vm-page-title {
+    @apply font-[family-name:var(--font-serif)] text-3xl tracking-tight text-[var(--ink)] sm:text-[2rem];
+  }
+
+  .vm-page-sub {
+    @apply mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--ink-muted)];
+  }
+
+  .vm-section {
+    @apply space-y-6;
+  }
+
+  .vm-empty {
+    @apply flex flex-col items-start gap-4 rounded-[var(--radius-lg)] border border-dashed border-[var(--line)] bg-[var(--surface)]/70 p-8 sm:p-10;
+  }
+
+  .vm-command {
+    @apply flex flex-col items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] bg-white px-2 py-3 text-[11px] font-medium text-[var(--ink)] transition hover:border-[var(--accent)]/35 hover:bg-[var(--accent-soft)]/50 active:scale-[0.98] sm:text-xs;
+  }
+
+  .vm-command-primary {
+    @apply vm-command border-[var(--accent)]/25 bg-[var(--accent-soft)] text-[var(--accent)];
+  }
+
+  .vm-fade-in {
+    animation: vm-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .vm-fade-in-delay-1 {
+    animation: vm-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+  }
+
+  .vm-fade-in-delay-2 {
+    animation: vm-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both;
+  }
+
+  .vm-fade-in-delay-3 {
+    animation: vm-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.24s both;
+  }
+
+  .vm-brand-mark {
+    @apply font-[family-name:var(--font-serif)] tracking-tight text-[var(--ink)];
+  }
+
+  .vm-nav-shell {
+    @apply fixed bottom-4 left-1/2 z-40 flex w-[min(100%-1.5rem,36rem)] -translate-x-1/2 items-center gap-1 rounded-2xl border border-[var(--line)] bg-[var(--surface)]/92 p-1.5 backdrop-blur-xl;
+    box-shadow: var(--shadow-nav);
+  }
+
+  .vm-media-frame {
+    @apply overflow-hidden rounded-[var(--radius-lg)] bg-[var(--paper-2)];
+  }
+}
+
+@keyframes vm-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vm-fade-in,
+  .vm-fade-in-delay-1,
+  .vm-fade-in-delay-2,
+  .vm-fade-in-delay-3 {
+    animation: none;
+  }
+
+  .vm-card-interactive:hover {
+    transform: none;
   }
 }

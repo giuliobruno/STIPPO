@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type { CropRect } from "@/lib/media/crop";
+import { useT } from "@/i18n";
 
 type Props = {
   imageUrl: string;
@@ -27,6 +28,7 @@ type DragState = {
  * Simple region crop overlay — drag a rectangle over the preview image.
  */
 export function CropEditor({ imageUrl, onCancel, onApply }: Props) {
+  const crop = useT().crop;
   const imgRef = useRef<HTMLImageElement>(null);
   const [natural, setNatural] = useState({ w: 0, h: 0 });
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -91,14 +93,12 @@ export function CropEditor({ imageUrl, onCancel, onApply }: Props) {
     <div className="fixed inset-0 z-50 flex flex-col bg-black/80 backdrop-blur-sm">
       <div className="flex flex-col gap-3 px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium">Clip region</p>
-          <p className="text-xs text-white/70">
-            Drag (or finger-drag) over the detail to keep. Esc to cancel.
-          </p>
+          <p className="text-sm font-medium">{crop.title}</p>
+          <p className="text-xs text-white/70">{crop.hint}</p>
         </div>
         <div className="flex gap-2">
           <button type="button" className="vm-btn-secondary flex-1 !bg-white/10 !text-white !border-white/20 sm:flex-none" onClick={onCancel}>
-            Cancel
+            {crop.cancel}
           </button>
           <button
             type="button"
@@ -106,7 +106,7 @@ export function CropEditor({ imageUrl, onCancel, onApply }: Props) {
             disabled={!rect || rect.width < 4 || rect.height < 4}
             onClick={apply}
           >
-            Apply clip
+            {crop.apply}
           </button>
         </div>
       </div>
@@ -117,7 +117,7 @@ export function CropEditor({ imageUrl, onCancel, onApply }: Props) {
           <img
             ref={imgRef}
             src={imageUrl}
-            alt="Crop source"
+            alt={crop.alt}
             className="max-h-[min(80vh,720px)] max-w-full select-none"
             draggable={false}
             onLoad={(e) => {
