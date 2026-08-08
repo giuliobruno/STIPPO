@@ -1,6 +1,19 @@
 packages:
   - "."
 
+# pnpm 11: settings live here (not in package.json "pnpm" field).
+
+# Allow lifecycle scripts for packages that need native/codegen builds on Vercel.
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - prisma
+  - sharp
+  - esbuild
+  - unrs-resolver
+
+# Do not skip dependency scripts in CI (Prisma generate / sharp).
+ignoreScripts: false
+
 # pnpm 11 blocks packages younger than ~24h (supply-chain protection).
 # These three were published <24h ago and are pinned in our lockfile — allow them.
 # Remove this exclude in a day or two if you want the default policy fully on.
