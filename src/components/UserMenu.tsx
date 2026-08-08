@@ -48,11 +48,11 @@ export function UserMenu() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] py-1.5 pl-1.5 pr-2.5 text-left transition hover:border-[#c4bdb0]"
+        className="flex items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] py-1.5 pl-1.5 pr-2.5 text-left shadow-[var(--shadow-sm)] transition hover:border-[#c5beb0]"
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-sm font-medium text-[var(--accent)]">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-medium text-white">
           {initial}
         </span>
         <span className="hidden min-w-0 sm:block">
@@ -69,7 +69,7 @@ export function UserMenu() {
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-[0_16px_48px_rgba(20,20,20,0.12)]"
+          className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-md)]"
         >
           <div className="border-b border-[var(--line)] px-4 py-3">
             <p className="truncate text-sm font-medium">{name}</p>

@@ -70,7 +70,11 @@ body {
   }
 
   .vm-btn-ghost {
-    @apply vm-btn text-[var(--ink-muted)] hover:bg-black/[0.04] hover:text-[var(--ink)];
+    @apply vm-btn text-[var(--ink-muted)] hover:text-[var(--ink)];
+  }
+
+  .vm-btn-ghost:hover {
+    background: rgba(0, 0, 0, 0.04);
   }
 
   .vm-input {
@@ -107,15 +111,22 @@ body {
   }
 
   .vm-empty {
-    @apply flex flex-col items-start gap-4 rounded-[var(--radius-lg)] border border-dashed border-[var(--line)] bg-[var(--surface)]/70 p-8 sm:p-10;
+    @apply flex flex-col items-start gap-4 rounded-[var(--radius-lg)] border border-dashed border-[var(--line)] p-8 sm:p-10;
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
   }
 
   .vm-command {
-    @apply flex flex-col items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] bg-white px-2 py-3 text-[11px] font-medium text-[var(--ink)] transition hover:border-[var(--accent)]/35 hover:bg-[var(--accent-soft)]/50 active:scale-[0.98] sm:text-xs;
+    @apply flex flex-col items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--line)] bg-white px-2 py-3 text-[11px] font-medium text-[var(--ink)] transition active:scale-[0.98] sm:text-xs;
+  }
+
+  .vm-command:hover {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+    background: color-mix(in srgb, var(--accent-soft) 50%, white);
   }
 
   .vm-command-primary {
-    @apply vm-command border-[var(--accent)]/25 bg-[var(--accent-soft)] text-[var(--accent)];
+    @apply vm-command bg-[var(--accent-soft)] text-[var(--accent)];
+    border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
   }
 
   .vm-fade-in {
@@ -139,7 +150,8 @@ body {
   }
 
   .vm-nav-shell {
-    @apply fixed bottom-4 left-1/2 z-40 flex w-[min(100%-1.5rem,36rem)] -translate-x-1/2 items-center gap-1 rounded-2xl border border-[var(--line)] bg-[var(--surface)]/92 p-1.5 backdrop-blur-xl;
+    @apply fixed bottom-4 left-1/2 z-40 flex w-[min(100%-1.5rem,36rem)] -translate-x-1/2 items-center gap-1 rounded-2xl border border-[var(--line)] p-1.5 backdrop-blur-xl;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
     box-shadow: var(--shadow-nav);
   }
 
