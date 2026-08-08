@@ -7,6 +7,7 @@ import {
   hasMailerConfigured,
   isInlineRecoveryEnabled,
 } from "@/lib/auth-recovery";
+import { passwordResetEmail, sendMail } from "@/lib/mail";
 import {
   clientKey,
   rateLimit,
@@ -73,10 +74,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // TODO: send via Resend/SMTP when mailer module is wired.
-    console.info(
-      `[auth] Password reset requested for ${email} (mailer configured — wire send path)`
-    );
+    try {
+      const mail = passwordResetEmail(resetUrl);
+      await sendMail({ to: email, ...mail });
+    } catch (err) {
+      console.error("[auth] Failed to send password reset email", err);
+      // Still generic — do not reveal mailer failures to clients.
+      return NextResponse.json(
+        { ok: true, message: GENERIC, inline: false },
+        { headers: rateLimitHeaders(limited) }
+      );
+    }
+
     return NextResponse.json(
       { ok: true, message: GENERIC, inline: false },
       { headers: rateLimitHeaders(limited) }

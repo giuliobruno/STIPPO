@@ -1,26 +1,44 @@
 # Setup Stippo — cosa fare tu (passo passo)
 
-Questo documento elenca **solo** le azioni che richiedono i tuoi account (Google, OpenAI, Stripe, hosting). Il codice è già pronto.
+Questo documento elenca **solo** le azioni che richiedono i tuoi account (Google, OpenRouter, Stripe, hosting, Postgres). Il codice è già pronto.
 
 ---
 
-## 1. Ambiente locale (obbligatorio)
+## 1. Database Postgres (obbligatorio)
+
+SQLite non è più supportato. Crea un DB gratis:
+
+1. **Neon** → https://neon.tech → New project → copia la connection string  
+   oppure **Supabase** → Project Settings → Database → URI  
+2. Incolla in `.env` come `DATABASE_URL`
+
+Esempio:
+
+```
+DATABASE_URL="postgresql://user:pass@ep-xxx.eu-central-1.aws.neon.tech/stippo?sslmode=require"
+```
+
+---
+
+## 2. Ambiente locale
 
 ```bash
 cd C:\PROJECTS\STIPPO
 cp .env.example .env
+# Compila DATABASE_URL, NEXTAUTH_SECRET, OPENROUTER_API_KEY, NEXT_PUBLIC_GOOGLE_CLIENT_ID
 pnpm install
-pnpm db:push
+pnpm db:deploy
 pnpm dev
 ```
 
 Apri http://localhost:3000
 
+> Prima volta / schema nuovo: `pnpm db:deploy` applica le migrazioni.  
+> In sviluppo puoi anche usare `pnpm db:push` se preferisci.
+
 ---
 
-## 2. Chiavi nel file `.env` (mai in git)
-
-Apri `.env` e compila:
+## 3. Chiavi nel file `.env` (mai in git)
 
 ### A) Auth (obbligatorio)
 
@@ -74,8 +92,6 @@ Poi: `pnpm dev` → `/app/vault` → **Usa il mio Google Drive**.
 
 Gli architetti non lanciano lo script: premono solo il pulsante e fanno login.
 
----
-
 ### D) Google login NextAuth (opzionale)
 
 ```
@@ -85,7 +101,20 @@ GOOGLE_CLIENT_SECRET=...
 
 Solo se vuoi “Sign in with Google” (non serve per la sync Drive del vault).
 
-### E) Stripe Pro (quando vuoi abbonamenti)
+### E) Email reset password (consigliato già in locale; obbligatorio in prod)
+
+**Resend** (semplice):
+
+1. https://resend.com → API key  
+2. Verifica il dominio (in dev puoi usare `onboarding@resend.dev`)  
+3. In `.env`:
+
+```
+RESEND_API_KEY="re_..."
+EMAIL_FROM="Stippo <noreply@tuodominio.com>"
+```
+
+### F) Stripe Pro (quando vuoi abbonamenti)
 
 1. Stripe Dashboard → Product → Price $15/mo  
 2. In `.env`:
@@ -101,7 +130,7 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_...
 
 ---
 
-## 3. Primo uso in app
+## 4. Primo uso in app
 
 1. **Signup** su http://localhost:3000/signup  
 2. Menu utente → **Work vault / cloud** (`/app/vault`)  
@@ -112,40 +141,39 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_...
 
 ---
 
-## 4. Produzione (quando sei pronto)
+## 5. Produzione su Vercel
 
-1. Hosting consigliato: **Vercel** (Next.js)  
-2. Database: **Postgres** obbligatorio (SQLite `file:` è bloccato in prod)  
-3. Imposta le variabili nel pannello Environment Variables (vedi sotto)  
-4. `NEXTAUTH_URL` = URL HTTPS  
-5. Aggiorna origins OAuth Google con il dominio prod  
-6. Configura email reset (`RESEND_API_KEY` o SMTP) — senza mailer i reset non partono in prod  
-7. Deploy: collega il repo GitHub e deploy  
-8. Non caricare mai `.env` su GitHub
-
-### Env minime in produzione
+1. Push del repo su GitHub  
+2. [vercel.com](https://vercel.com) → Import project  
+3. Environment Variables (Production):
 
 ```
 DATABASE_URL=postgresql://...
-NEXTAUTH_URL=https://tuodominio
+NEXTAUTH_URL=https://tuodominio-o-xxx.vercel.app
 NEXTAUTH_SECRET=<random ≥32 chars>
 OPENROUTER_API_KEY=...
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=...
-RESEND_API_KEY=...   # o SMTP_*
+RESEND_API_KEY=...
+EMAIL_FROM=Stippo <noreply@tuodominio.com>
 ```
+
+4. Deploy — il build esegue `prisma migrate deploy` automaticamente  
+5. Aggiorna origins OAuth Google con l’URL prod  
+6. (Opz) Dominio custom in Vercel → Domains  
+7. (Opz) Stripe webhook → `https://tuodominio/api/stripe/webhook`
 
 ### Sicurezza già nel codice
 
 - Security headers + CSP (`src/middleware.ts`)
 - Rate limit su auth / AI
 - Upload media server disabilitati in prod (vault BYOS)
-- Token Drive/Dropbox cifrati in IndexedDB (non più plaintext in `localStorage`)
+- Token Drive/Dropbox cifrati in IndexedDB
 - Reset password inline disabilitato in prod
 - Password: min 10 caratteri, lettera + numero, bcrypt cost 12
 
 ---
 
-## 5. PWA / telefono
+## 6. PWA / telefono
 
 - **Android Chrome:** apri il sito HTTPS → Installa / Aggiungi a Home → Share Target funziona  
 - **iPhone Safari:** Condividi → Aggiungi a Home (limitazioni Share Target)  
@@ -154,10 +182,11 @@ RESEND_API_KEY=...   # o SMTP_*
 
 ---
 
-## 6. Cosa NON fare
+## 7. Cosa NON fare
 
-- ❌ Mettere `OPENAI_API_KEY` in codice frontend o in `NEXT_PUBLIC_*`  
+- ❌ Mettere `OPENAI_API_KEY` / `OPENROUTER_API_KEY` in codice frontend o in `NEXT_PUBLIC_*`  
 - ❌ Commitare `.env`  
+- ❌ Usare SQLite / `file:` in produzione  
 - ❌ Dare all’app scope Drive “full drive” (usiamo `drive.file`)  
 - ❌ Aspettarsi sync Drive senza aver collegato `/app/vault`
 
@@ -165,13 +194,15 @@ RESEND_API_KEY=...   # o SMTP_*
 
 ## Checklist rapida
 
+- [ ] Postgres creato (Neon/Supabase) + `DATABASE_URL`  
 - [ ] `.env` creato da `.env.example`  
 - [ ] `NEXTAUTH_SECRET` impostato (≥32 caratteri in prod)  
+- [ ] `pnpm db:deploy` ok  
 - [ ] `OPENROUTER_API_KEY` o `OPENAI_API_KEY`  
 - [ ] `NEXT_PUBLIC_GOOGLE_CLIENT_ID` + Drive API abilitata  
 - [ ] `pnpm dev` → signup → vault → capture → search  
-- [ ] (Prod) Vercel + Postgres + env + OAuth origins  
-- [ ] (Prod) `RESEND_API_KEY` o SMTP per reset password  
+- [ ] (Prod) Vercel + env + OAuth origins  
+- [ ] (Prod) `RESEND_API_KEY` + `EMAIL_FROM`  
 - [ ] (Opz) Stripe  
 - [ ] (Opz) Install PWA sul telefono  
 
