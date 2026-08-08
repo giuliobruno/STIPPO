@@ -79,39 +79,34 @@ export function VaultMemoryDetail({ id }: { id: string }) {
 
       {mediaUrl ? (
         memory.mediaType === "video" ? (
-          <video src={mediaUrl} controls className="w-full rounded-2xl" />
+          <video src={mediaUrl} controls className="vm-media-frame w-full" />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={mediaUrl}
             alt={memory.title}
-            className="w-full rounded-2xl object-cover"
+            className="vm-media-frame w-full object-cover"
           />
         )
       ) : null}
 
       <div className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.08em] text-[var(--ink-muted)]">
+        <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-muted)]">
           {memory.mediaType} · {memory.syncState} · {memory.source}
         </p>
-        <h2 className="font-[family-name:var(--font-serif)] text-3xl">
-          {memory.title}
-        </h2>
+        <h2 className="vm-page-title">{memory.title}</h2>
         {memory.description ? (
-          <p className="text-[var(--ink-muted)]">{memory.description}</p>
+          <p className="leading-relaxed text-[var(--ink-muted)]">{memory.description}</p>
         ) : null}
         {memory.aiSummary ? (
-          <p className="text-sm text-[var(--ink)]">{memory.aiSummary}</p>
+          <p className="text-sm leading-relaxed text-[var(--ink)]">{memory.aiSummary}</p>
         ) : null}
       </div>
 
       {memory.tags.length ? (
         <div className="flex flex-wrap gap-2">
           {memory.tags.map((t) => (
-            <span
-              key={t}
-              className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs text-[var(--accent)]"
-            >
+            <span key={t} className="vm-chip">
               {t}
             </span>
           ))}
@@ -119,16 +114,16 @@ export function VaultMemoryDetail({ id }: { id: string }) {
       ) : null}
 
       {memory.transcript ? (
-        <div className="vm-card p-4">
+        <div className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)]">
           <p className="vm-label">Voice note</p>
-          <p className="text-sm">{memory.transcript}</p>
+          <p className="text-sm leading-relaxed">{memory.transcript}</p>
         </div>
       ) : null}
 
       {memory.ocrText ? (
-        <div className="vm-card p-4">
+        <div className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)]">
           <p className="vm-label">OCR</p>
-          <p className="text-sm whitespace-pre-wrap">{memory.ocrText}</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{memory.ocrText}</p>
         </div>
       ) : null}
 

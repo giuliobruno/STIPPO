@@ -11,8 +11,8 @@ export function LegalShell({
     <div className="min-h-screen">
       <div className="mx-auto max-w-3xl px-6 pb-20 pt-8">
         <header className="mb-10 flex items-center justify-between gap-4">
-          <Link href="/" className="text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--ink-muted)]">
-            Visual Memory
+          <Link href="/" className="vm-brand-mark text-xl">
+            Stippo
           </Link>
           <div className="flex flex-wrap gap-3 text-sm">
             <Link href="/privacy" className="text-[var(--ink-muted)] hover:text-[var(--ink)]">

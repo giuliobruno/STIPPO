@@ -6,8 +6,8 @@
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f3f1ec",
-  "theme_color": "#1e3a5f",
+  "background_color": "#f2f0eb",
+  "theme_color": "#1a3354",
   "orientation": "portrait-primary",
   "categories": ["productivity", "business", "photo"],
   "icons": [

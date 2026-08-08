@@ -10,13 +10,10 @@ export default function ResetPasswordPage({
 
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 py-12">
-      <Link
-        href="/"
-        className="mb-8 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--ink-muted)]"
-      >
-        Visual Memory
+      <Link href="/" className="vm-brand-mark mb-8 text-2xl">
+        Stippo
       </Link>
-      <h1 className="font-[family-name:var(--font-serif)] text-4xl">Set new password</h1>
+      <h1 className="font-[family-name:var(--font-serif)] text-4xl tracking-tight">Set new password</h1>
       <p className="mt-2 mb-8 text-sm text-[var(--ink-muted)]">
         Choose a new password (at least 8 characters). Use the eye icon to verify what you type.
       </p>
