@@ -30,7 +30,9 @@ export function isInlineRecoveryEnabled() {
 }
 
 export function hasMailerConfigured() {
-  return Boolean(process.env.SMTP_HOST || process.env.RESEND_API_KEY);
+  const resend = process.env.RESEND_API_KEY?.trim().replace(/^["']|["']$/g, "");
+  const smtp = process.env.SMTP_HOST?.trim();
+  return Boolean(resend || smtp);
 }
 
 export async function createPasswordResetToken(email: string) {

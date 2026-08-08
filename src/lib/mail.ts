@@ -14,27 +14,32 @@ export type SendMailInput = {
   tags?: Array<{ name: string; value: string }>;
 };
 
-export async function sendMail(input: SendMailInput): Promise<void> {
-  if (process.env.RESEND_API_KEY) {
-    await sendViaResend(input);
-    return;
+export async function sendMail(input: SendMailInput): Promise<{ id?: string }> {
+  if (process.env.RESEND_API_KEY?.trim()) {
+    return sendViaResend(input);
   }
-  if (process.env.SMTP_HOST) {
+  if (process.env.SMTP_HOST?.trim()) {
     await sendViaSmtp(input);
-    return;
+    return {};
   }
   throw new Error("No mailer configured (set RESEND_API_KEY or SMTP_HOST)");
 }
 
 function defaultFrom() {
   return (
-    process.env.EMAIL_FROM ||
-    process.env.SMTP_FROM ||
+    process.env.EMAIL_FROM?.trim() ||
+    process.env.SMTP_FROM?.trim() ||
     "Stippo <onboarding@resend.dev>"
   );
 }
 
-async function sendViaResend(input: SendMailInput) {
+function resendApiKey() {
+  const key = process.env.RESEND_API_KEY?.trim().replace(/^["']|["']$/g, "");
+  if (!key) throw new Error("RESEND_API_KEY is empty");
+  return key;
+}
+
+async function sendViaResend(input: SendMailInput): Promise<{ id?: string }> {
   const from = defaultFrom();
   const headers: Record<string, string> = {
     "X-Entity-Ref-ID": `${Date.now()}`,
@@ -44,28 +49,44 @@ async function sendViaResend(input: SendMailInput) {
     headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
   }
 
+  const payload: Record<string, unknown> = {
+    from,
+    to: [input.to],
+    subject: input.subject,
+    text: input.text,
+    html: input.html || undefined,
+    reply_to: input.replyTo || process.env.EMAIL_REPLY_TO?.trim() || undefined,
+    headers,
+  };
+  // Tags are optional — omit if they cause account/plan issues.
+  if (input.tags?.length) payload.tags = input.tags;
+
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      Authorization: `Bearer ${resendApiKey()}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      from,
-      to: [input.to],
-      subject: input.subject,
-      text: input.text,
-      html: input.html || undefined,
-      reply_to: input.replyTo || process.env.EMAIL_REPLY_TO || undefined,
-      headers,
-      tags: input.tags,
-    }),
+    body: JSON.stringify(payload),
   });
 
+  const bodyText = await res.text().catch(() => "");
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Resend failed (${res.status}): ${body.slice(0, 300)}`);
+    console.error("[mail] Resend error", res.status, bodyText.slice(0, 500), {
+      from,
+      to: input.to,
+    });
+    throw new Error(`Resend failed (${res.status}): ${bodyText.slice(0, 300)}`);
   }
+
+  let id: string | undefined;
+  try {
+    id = (JSON.parse(bodyText) as { id?: string }).id;
+  } catch {
+    /* ignore */
+  }
+  console.info("[mail] Resend accepted", { id, to: input.to, from });
+  return { id };
 }
 
 async function sendViaSmtp(input: SendMailInput) {

@@ -99,7 +99,17 @@ export async function POST(req: Request) {
     }
 
     try {
-      await sendMail({ to: email, ...mail });
+      const sent = await sendMail({ to: email, ...mail });
+      return NextResponse.json(
+        {
+          ok: true,
+          requiresVerification: true,
+          message: "Check your inbox to confirm your email before signing in.",
+          email,
+          resendId: sent.id || null,
+        },
+        { status: 201, headers: rateLimitHeaders(limited) }
+      );
     } catch (err) {
       console.error("[auth] Failed to send verification email", err);
       return NextResponse.json(
@@ -107,23 +117,17 @@ export async function POST(req: Request) {
           ok: true,
           requiresVerification: true,
           message:
-            "Account created, but we could not send the confirmation email. Use Resend verification from the check-email page.",
+            "Account created, but the confirmation email failed to send. Check RESEND_API_KEY / EMAIL_FROM on the server, then use Resend below.",
           email,
           sendFailed: true,
+          mailError:
+            process.env.NODE_ENV !== "production" && err instanceof Error
+              ? err.message
+              : undefined,
         },
         { status: 201, headers: rateLimitHeaders(limited) }
       );
     }
-
-    return NextResponse.json(
-      {
-        ok: true,
-        requiresVerification: true,
-        message: "Check your inbox to confirm your email before signing in.",
-        email,
-      },
-      { status: 201, headers: rateLimitHeaders(limited) }
-    );
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues[0]?.message }, { status: 400 });

@@ -7,13 +7,19 @@ export function CheckEmailPanel({
   email,
   inline = false,
   verifyUrl = "",
+  sendFailed = false,
 }: {
   email: string;
   inline?: boolean;
   verifyUrl?: string;
+  sendFailed?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(
+    sendFailed
+      ? "The confirmation email did not leave our mail provider. Check RESEND_API_KEY / EMAIL_FROM on Vercel, then resend."
+      : null
+  );
   const [error, setError] = useState<string | null>(null);
   const [inlineLink, setInlineLink] = useState(inline ? verifyUrl : "");
 

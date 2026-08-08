@@ -4,7 +4,12 @@ import { CheckEmailPanel } from "@/components/CheckEmailPanel";
 export default function CheckEmailPage({
   searchParams,
 }: {
-  searchParams?: { email?: string; inline?: string; verifyUrl?: string };
+  searchParams?: {
+    email?: string;
+    inline?: string;
+    verifyUrl?: string;
+    sendFailed?: string;
+  };
 }) {
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-6 py-12">
@@ -23,6 +28,7 @@ export default function CheckEmailPage({
         email={searchParams?.email || ""}
         inline={searchParams?.inline === "1"}
         verifyUrl={searchParams?.verifyUrl || ""}
+        sendFailed={searchParams?.sendFailed === "1"}
       />
     </div>
   );

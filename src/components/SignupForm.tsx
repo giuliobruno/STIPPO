@@ -35,6 +35,7 @@ export function SignupForm() {
       params.set("inline", "1");
       params.set("verifyUrl", data.verifyUrl);
     }
+    if (data.sendFailed) params.set("sendFailed", "1");
     router.push(`/check-email?${params.toString()}`);
     router.refresh();
   }
