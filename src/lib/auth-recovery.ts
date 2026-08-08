@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { resolveAuthUrl } from "@/lib/auth-url";
 
 const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 const PREFIX = "password-reset:";
@@ -60,6 +61,6 @@ export async function consumePasswordResetToken(rawToken: string) {
 }
 
 export function absoluteUrl(path: string) {
-  const base = (process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "");
+  const base = resolveAuthUrl();
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }

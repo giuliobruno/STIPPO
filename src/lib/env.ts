@@ -2,10 +2,14 @@
  * Production environment guards. Call from instrumentation on boot.
  */
 
-const REQUIRED_PROD = ["NEXTAUTH_SECRET", "NEXTAUTH_URL", "DATABASE_URL"] as const;
+import { resolveAuthUrl } from "@/lib/auth-url";
+
+const REQUIRED_PROD = ["NEXTAUTH_SECRET", "DATABASE_URL"] as const;
 
 export function assertProductionEnv() {
   if (process.env.NODE_ENV !== "production") return;
+  // Avoid failing the Next.js compile/prerender phase before env is fully wired.
+  if (process.env.NEXT_PHASE === "phase-production-build") return;
 
   const missing = REQUIRED_PROD.filter((k) => !process.env[k]?.trim());
   if (missing.length) {
@@ -21,12 +25,8 @@ export function assertProductionEnv() {
     );
   }
 
-  const url = process.env.NEXTAUTH_URL!;
-  if (!url.startsWith("https://") && !url.includes("localhost")) {
-    throw new Error(
-      "[stippo] NEXTAUTH_URL must be https:// in production (or localhost for rare self-host tests)"
-    );
-  }
+  // Normalize so NextAuth never sees a bare domain / empty value.
+  process.env.NEXTAUTH_URL = resolveAuthUrl();
 
   if (
     process.env.DATABASE_URL?.startsWith("file:") &&
