@@ -125,61 +125,74 @@ export function SearchPanel() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="vm-section">
       <div>
-        <h2 className="font-[family-name:var(--font-serif)] text-3xl">Ask your memory</h2>
-        <p className="mt-1 text-sm text-[var(--ink-muted)]">
+        <h2 className="vm-page-title">Ask your memory</h2>
+        <p className="vm-page-sub">
           Natural language over your project references — hybrid keyword + semantic search.
           {sttSupported ? " Tap the mic to dictate." : null}
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="flex gap-2">
-        <div className="relative min-w-0 flex-1">
-          <input
-            className="vm-input pr-12"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder='e.g. "facade ideas with dark frames" or "aluminum windows hotel"'
-            aria-label="Search query"
-          />
-          <button
-            type="button"
-            onClick={toggleListen}
-            disabled={!sttSupported}
-            title={
-              !sttSupported
-                ? "Speech recognition unavailable"
-                : listening
-                  ? "Stop dictation"
-                  : "Dictate search"
-            }
-            aria-pressed={listening}
-            aria-label={listening ? "Stop dictation" : "Dictate search"}
-            className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-2 transition ${
-              listening
-                ? "bg-[var(--accent)] text-white"
-                : "text-[var(--ink-muted)] hover:bg-black/5 hover:text-[var(--ink)]"
-            } disabled:cursor-not-allowed disabled:opacity-40`}
-          >
-            {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+      <form
+        onSubmit={onSubmit}
+        className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[var(--shadow-sm)]"
+      >
+        <div className="flex gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ink-muted)]" />
+            <input
+              className="vm-input border-0 bg-transparent pl-10 pr-12 shadow-none focus:border-transparent focus:shadow-none"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder='e.g. "facade ideas with dark frames" or "aluminum windows hotel"'
+              aria-label="Search query"
+            />
+            <button
+              type="button"
+              onClick={toggleListen}
+              disabled={!sttSupported}
+              title={
+                !sttSupported
+                  ? "Speech recognition unavailable"
+                  : listening
+                    ? "Stop dictation"
+                    : "Dictate search"
+              }
+              aria-pressed={listening}
+              aria-label={listening ? "Stop dictation" : "Dictate search"}
+              className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg p-2 transition ${
+                listening
+                  ? "bg-[var(--accent)] text-white"
+                  : "text-[var(--ink-muted)] hover:bg-black/5 hover:text-[var(--ink)]"
+              } disabled:cursor-not-allowed disabled:opacity-40`}
+            >
+              {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </button>
+          </div>
+          <button className="vm-btn-primary shrink-0 !px-5" disabled={busy}>
+            {busy ? "…" : "Search"}
           </button>
         </div>
-        <button className="vm-btn-primary shrink-0" disabled={busy}>
-          <Search className="h-4 w-4" />
-          {busy ? "…" : "Search"}
-        </button>
       </form>
 
       {listening ? (
-        <p className="text-sm text-[var(--accent)]">Listening… speak your search</p>
+        <p className="text-sm font-medium text-[var(--accent)]">Listening… speak your search</p>
       ) : null}
-      {sttError ? <p className="text-sm text-red-700">{sttError}</p> : null}
+      {sttError ? <p className="text-sm text-[var(--danger)]">{sttError}</p> : null}
 
       {searched ? (
         <p className="text-sm text-[var(--ink-muted)]">
           {hits.length} reference{hits.length === 1 ? "" : "s"} found
         </p>
+      ) : null}
+
+      {!searched && !listening ? (
+        <div className="vm-empty py-8">
+          <p className="text-sm leading-relaxed text-[var(--ink-muted)]">
+            Try materials, details, or places — e.g. “oak flooring lobby” or “steel staircase Milan”.
+          </p>
+        </div>
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
