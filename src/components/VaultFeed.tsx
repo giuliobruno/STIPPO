@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Cloud, CloudOff, RefreshCw } from "lucide-react";
 import { MemoryCard } from "@/components/MemoryCard";
@@ -18,7 +18,7 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  async function reload() {
+  const reload = useCallback(async () => {
     await initVault();
     const [rows, m] = await Promise.all([
       listVaultMemories({ projectId, limit: 60 }),
@@ -26,11 +26,11 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
     ]);
     setMemories(rows);
     setMeta(m);
-  }
+  }, [projectId]);
 
   useEffect(() => {
     void reload();
-  }, [projectId]);
+  }, [reload]);
 
   async function syncNow() {
     setBusy(true);

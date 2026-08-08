@@ -27,7 +27,6 @@ type TokenBundle = {
  */
 export function createGoogleDriveAdapter(): VaultSyncAdapter {
   let folderId: string | null = null;
-  let folderName: string | null = null;
 
   return {
     id: "google_drive",
@@ -38,7 +37,6 @@ export function createGoogleDriveAdapter(): VaultSyncAdapter {
       await saveToken(token);
       const folder = await ensureStippoFolder(token.accessToken);
       folderId = folder.id;
-      folderName = folder.name;
       await secureSet(FOLDER_KEY, { id: folder.id, name: folder.name });
       try {
         localStorage.removeItem(FOLDER_KEY);
@@ -63,7 +61,6 @@ export function createGoogleDriveAdapter(): VaultSyncAdapter {
         /* ignore */
       }
       folderId = null;
-      folderName = null;
     },
 
     async isConnected(): Promise<boolean> {
@@ -72,7 +69,6 @@ export function createGoogleDriveAdapter(): VaultSyncAdapter {
       const folder = await loadFolder();
       if (folder) {
         folderId = folder.id;
-        folderName = folder.name;
       }
       return Boolean(folderId);
     },

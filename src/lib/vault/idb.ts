@@ -286,7 +286,9 @@ export async function memoryCount(): Promise<number> {
 }
 
 function stripBlobUrls(m: VaultMemory): VaultMemory {
-  const { localBlobUrl: _a, thumbBlobUrl: _b, ...rest } = m;
+  const rest = { ...m };
+  delete rest.localBlobUrl;
+  delete rest.thumbBlobUrl;
   return rest;
 }
 

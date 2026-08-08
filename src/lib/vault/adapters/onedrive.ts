@@ -54,11 +54,15 @@ export function createOneDriveAdapter(): VaultSyncAdapter {
       }
     },
 
-    async push(_relativePath: string, _data: Blob, _mimeType: string): Promise<RemoteRef> {
+    async push(relativePath: string, data: Blob, mimeType: string): Promise<RemoteRef> {
+      void relativePath;
+      void data;
+      void mimeType;
       throw new Error("OneDrive not connected");
     },
 
-    async pull(_relativePath: string): Promise<Blob | null> {
+    async pull(relativePath: string): Promise<Blob | null> {
+      void relativePath;
       return null;
     },
 
