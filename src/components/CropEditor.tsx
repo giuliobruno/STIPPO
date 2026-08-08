@@ -90,14 +90,14 @@ export function CropEditor({ imageUrl, onCancel, onApply }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black/80 backdrop-blur-sm">
-      <div className="flex flex-col gap-3 px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#121820]/92 backdrop-blur-md">
+      <div className="flex flex-col gap-3 border-b border-white/10 px-4 py-3.5 text-white sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-medium">{crop.title}</p>
-          <p className="text-xs text-white/70">{crop.hint}</p>
+          <p className="text-sm font-medium tracking-tight">{crop.title}</p>
+          <p className="text-xs text-white/65">{crop.hint}</p>
         </div>
         <div className="flex gap-2">
-          <button type="button" className="vm-btn-secondary flex-1 !bg-white/10 !text-white !border-white/20 sm:flex-none" onClick={onCancel}>
+          <button type="button" className="vm-btn-secondary flex-1 !border-white/20 !bg-white/10 !text-white sm:flex-none" onClick={onCancel}>
             {crop.cancel}
           </button>
           <button
@@ -112,7 +112,7 @@ export function CropEditor({ imageUrl, onCancel, onApply }: Props) {
       </div>
 
       <div className="relative flex flex-1 items-center justify-center overflow-hidden p-4">
-        <div className="relative max-h-full max-w-full touch-none">
+        <div className="relative max-h-full max-w-full touch-none overflow-hidden rounded-xl">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             ref={imgRef}
@@ -131,7 +131,7 @@ export function CropEditor({ imageUrl, onCancel, onApply }: Props) {
           />
           {overlayStyle ? (
             <div
-              className="pointer-events-none absolute border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]"
+              className="pointer-events-none absolute border-2 border-white shadow-[0_0_0_9999px_rgba(10,14,22,0.5)]"
               style={overlayStyle}
             />
           ) : null}

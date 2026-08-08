@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import { FolderKanban } from "lucide-react";
 import {
   initVault,
   listVaultProjects,
@@ -60,15 +61,18 @@ export function VaultProjects() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="vm-section">
       <div>
-        <h2 className="font-[family-name:var(--font-serif)] text-3xl">Projects</h2>
-        <p className="mt-1 text-sm text-[var(--ink-muted)]">
+        <h2 className="vm-page-title">Projects</h2>
+        <p className="vm-page-sub">
           Studio units stored in your work vault — not generic folders.
         </p>
       </div>
 
-      <form onSubmit={onCreate} className="vm-card space-y-3 p-5">
+      <form
+        onSubmit={onCreate}
+        className="space-y-3 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-sm)]"
+      >
         <p className="vm-label mb-0">New project</p>
         <input
           className="vm-input"
@@ -99,23 +103,41 @@ export function VaultProjects() {
         </button>
       </form>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {projects.map((p) => (
-          <Link
-            key={p.id}
-            href={`/app?projectId=${p.id}`}
-            className="vm-card block p-5 hover:border-[var(--accent)]/30"
-          >
-            <h3 className="font-[family-name:var(--font-serif)] text-xl">{p.name}</h3>
+      {projects.length === 0 ? (
+        <div className="vm-empty">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
+            <FolderKanban className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-[family-name:var(--font-serif)] text-xl tracking-tight">
+              No projects yet
+            </h3>
             <p className="mt-1 text-sm text-[var(--ink-muted)]">
-              {[p.location, p.clientName].filter(Boolean).join(" · ") || "No location yet"}
+              Create one above, or let Capture auto-detect from your voice note.
             </p>
-          </Link>
-        ))}
-        {projects.length === 0 ? (
-          <p className="text-sm text-[var(--ink-muted)]">No projects yet.</p>
-        ) : null}
-      </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {projects.map((p) => (
+            <Link
+              key={p.id}
+              href={`/app?projectId=${p.id}`}
+              className="vm-card vm-card-interactive block p-5"
+            >
+              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                <FolderKanban className="h-4 w-4" />
+              </div>
+              <h3 className="font-[family-name:var(--font-serif)] text-xl tracking-tight">
+                {p.name}
+              </h3>
+              <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                {[p.location, p.clientName].filter(Boolean).join(" · ") || "No location yet"}
+              </p>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
