@@ -25,8 +25,13 @@ export function assertProductionEnv() {
     );
   }
 
-  // Normalize so NextAuth never sees a bare domain / empty value.
-  process.env.NEXTAUTH_URL = resolveAuthUrl();
+  // Validate only — do not assign to process.env.NEXTAUTH_URL.
+  // Next.js inlines that env as a string literal at build time, which would
+  // turn `process.env.NEXTAUTH_URL = …` into `"https://…" = …` (invalid).
+  const authUrl = resolveAuthUrl();
+  if (!authUrl.startsWith("http://") && !authUrl.startsWith("https://")) {
+    throw new Error("[stippo] Could not resolve a valid auth URL");
+  }
 
   if (
     process.env.DATABASE_URL?.startsWith("file:") &&
