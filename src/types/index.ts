@@ -1,6 +1,13 @@
 export type PlanTier = "free" | "pro" | "team";
 
-export type MediaType = "image" | "video" | "clip" | "snapshot" | "audio" | "document";
+export type MediaType =
+  | "image"
+  | "video"
+  | "clip"
+  | "snapshot"
+  | "audio"
+  | "document"
+  | "link";
 export type MemorySource =
   | "camera"
   | "upload"
@@ -48,6 +55,12 @@ export interface ImageAnalysisResult {
   entities: MemoryEntities;
   projectSuggested?: string;
 }
+
+/** Same shape as image analysis — produced from page metadata + LLM. */
+export type LinkAnalysisResult = ImageAnalysisResult;
+
+/** Same shape — produced from user note + light file/PDF context. */
+export type DocumentAnalysisResult = ImageAnalysisResult;
 
 export interface AudioAnalysisResult {
   transcript: string;

@@ -176,6 +176,9 @@ export function VaultFeed({ projectId }: { projectId?: string }) {
                 projectName: null,
                 createdAt: m.createdAt,
                 status: m.status,
+                mediaType: m.mediaType,
+                sourceUrl: m.sourceUrl,
+                sourceTitle: m.sourceTitle,
               }}
             />
           ))}

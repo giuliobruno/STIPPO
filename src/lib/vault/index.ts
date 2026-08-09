@@ -76,7 +76,10 @@ export async function createVaultMemory(
   await ensureVaultDb();
   const id = newId();
   const now = new Date().toISOString();
-  const mime = input.mimeType || input.file?.type || "application/octet-stream";
+  const mime =
+    input.mimeType ||
+    input.file?.type ||
+    (input.mediaType === "link" ? "text/uri-list" : "application/octet-stream");
   const ext = mediaExtension(mime, input.mediaType);
   const localPath = input.file ? `media/${id}${ext}` : null;
   const thumbPath = input.thumb ? `thumbs/${id}.jpg` : null;
@@ -100,7 +103,11 @@ export async function createVaultMemory(
 
   const memory: VaultMemory = {
     id,
-    title: "Processing…",
+    title:
+      (input.mediaType === "link" || input.mediaType === "document") &&
+      input.sourceTitle?.trim()
+        ? input.sourceTitle.trim()
+        : input.fileName?.trim() || "Processing…",
     description: null,
     mediaType: input.mediaType,
     mimeType: mime,
@@ -126,13 +133,23 @@ export async function createVaultMemory(
     projectSuggested: null,
     source: input.source,
     sourceUrl: input.sourceUrl ?? null,
-    sourceTitle: input.sourceTitle ?? null,
+    sourceTitle:
+      input.sourceTitle?.trim() ||
+      (input.mediaType === "document" ? input.fileName?.trim() || null : null),
     clipRect: input.clipRect ?? null,
     latitude: input.latitude ?? null,
     longitude: input.longitude ?? null,
     placeName: input.placeName ?? null,
     locationSource: input.locationSource ?? null,
-    searchText: (input.transcript || "").toLowerCase(),
+    searchText: [
+      input.transcript,
+      input.sourceUrl,
+      input.sourceTitle,
+      input.fileName,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase(),
     status: "processing",
     errorMessage: null,
     createdAt: now,
@@ -156,6 +173,7 @@ export async function applyAnalysis(
     analysis.searchText,
     existing.placeName,
     existing.sourceTitle,
+    existing.sourceUrl,
   ]
     .filter(Boolean)
     .join(" ")
@@ -174,6 +192,9 @@ export async function applyAnalysis(
     intent: analysis.intent || null,
     projectSuggested: analysis.projectSuggested || null,
     projectId: opts?.projectId ?? existing.projectId,
+    sourceTitle:
+      existing.sourceTitle ||
+      (existing.mediaType === "link" ? analysis.title || null : existing.sourceTitle),
     searchText,
     status: "ready",
     errorMessage: null,
@@ -326,6 +347,9 @@ export async function analyzeViaGateway(opts: {
   imageBlob?: Blob | null;
   mimeType?: string;
   transcript?: string;
+  url?: string | null;
+  documentBlob?: Blob | null;
+  fileName?: string | null;
   projectHints?: string[];
 }): Promise<MemoryAnalysisResult> {
   const form = new FormData();
@@ -336,7 +360,19 @@ export async function analyzeViaGateway(opts: {
       `frame.${(opts.mimeType || "image/jpeg").split("/")[1] || "jpg"}`
     );
   }
+  if (opts.documentBlob) {
+    form.append(
+      "document",
+      opts.documentBlob,
+      opts.fileName || "document.bin"
+    );
+  }
+  if (opts.fileName?.trim()) form.append("fileName", opts.fileName.trim());
+  if (opts.mimeType && !opts.imageBlob) {
+    form.append("mimeType", opts.mimeType);
+  }
   if (opts.transcript) form.append("transcript", opts.transcript);
+  if (opts.url?.trim()) form.append("url", opts.url.trim());
   if (opts.projectHints?.length) {
     form.append("projectHints", JSON.stringify(opts.projectHints));
   }

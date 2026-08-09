@@ -7,13 +7,23 @@ import {
   Camera,
   ClipboardPaste,
   Crop,
+  FileText,
   Images,
+  Link2,
   MapPin,
   Mic,
   MicOff,
   Video,
   X,
 } from "lucide-react";
+import { extractUrl, normalizeHttpUrl } from "@/lib/media/url";
+import {
+  DOCUMENT_ACCEPT,
+  formatBytes,
+  isDocumentFile,
+  isPdfFile,
+  validateDocumentFile,
+} from "@/lib/media/files";
 import { createThumbnail } from "@/lib/media/thumbnail";
 import { cropImageFile, type CropRect } from "@/lib/media/crop";
 import {
@@ -59,7 +69,7 @@ type CaptureSource =
   | "snapshot"
   | "import";
 
-type CommandHint = "photo" | "video" | "import" | "paste";
+type CommandHint = "photo" | "video" | "import" | "paste" | "link";
 
 type SpeechRec = {
   lang: string;
@@ -90,7 +100,9 @@ export function CaptureForm() {
     video: c.hintVideo,
     import: c.hintImport,
     paste: c.hintPaste,
+    link: c.hintLink,
   };
+  const linkUrlInputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
@@ -325,13 +337,21 @@ export function CaptureForm() {
               new File([blob], `screenshot-${Date.now()}.png`, { type: blob.type }),
               "screenshot"
             );
+            return;
           }
         }
+      }
+      const text = e.clipboardData?.getData("text/plain") || "";
+      const url = extractUrl(text);
+      if (url && !file) {
+        setSourceUrl(url);
+        setSource((prev) => (prev === "camera" ? "paste" : prev));
+        setCommandHint("link");
       }
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, [setImageFile]);
+  }, [setImageFile, file]);
 
   async function refreshGps() {
     const device = await readDeviceGps();
@@ -363,13 +383,40 @@ export function CaptureForm() {
           );
           return;
         }
+        for (const item of items) {
+          if (!item.types.includes("text/plain")) continue;
+          const blob = await item.getType("text/plain");
+          const text = await blob.text();
+          const url = extractUrl(text);
+          if (url) {
+            setSourceUrl(url);
+            setSource((prev) => (prev === "camera" ? "paste" : prev));
+            setCommandHint("link");
+            return;
+          }
+        }
         setError(c.errClipboardEmpty);
+        return;
+      }
+      const text = await navigator.clipboard?.readText?.();
+      const url = extractUrl(text || "");
+      if (url) {
+        setSourceUrl(url);
+        setSource((prev) => (prev === "camera" ? "paste" : prev));
+        setCommandHint("link");
         return;
       }
     } catch {
       // Browser may block Clipboard API — Ctrl/Cmd+V still works via paste listener.
     }
     setError(c.errPasteFallback);
+  }
+
+  function focusLinkField() {
+    setCommandHint("link");
+    setError(null);
+    linkUrlInputRef.current?.focus();
+    linkUrlInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   async function createProjectInline() {
@@ -510,18 +557,55 @@ export function CaptureForm() {
     if (!file) setSource("voice");
   }
 
-  function resolveMediaType(f: File | null, src: CaptureSource): VaultMediaType {
-    if (!f) return "audio";
+  function resolveMediaType(
+    f: File | null,
+    src: CaptureSource,
+    link: string | null
+  ): VaultMediaType {
+    if (!f) return link ? "link" : "audio";
     if (f.type.startsWith("video/")) return "video";
+    if (isDocumentFile(f)) return "document";
     if (src === "clip" || clipRect) return "clip";
     if (src === "screenshot" || src === "share" || src === "paste") return "snapshot";
     return "image";
   }
 
+  function setDocumentFile(f: File) {
+    const issue = validateDocumentFile(f);
+    if (issue === "too_large") {
+      setError(c.errFileTooLarge);
+      return;
+    }
+    if (issue) {
+      setError(c.errFileUnsupported);
+      return;
+    }
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(null);
+    setFile(f);
+    setSource("import");
+    setClipRect(null);
+    setError(null);
+    if (!sourceTitle.trim()) {
+      setSourceTitle(f.name.replace(/\.[^.]+$/, "") || f.name);
+    }
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!file && !transcript.trim()) {
+    const link =
+      normalizeHttpUrl(sourceUrl.trim()) || extractUrl(sourceUrl.trim());
+    if (!file && !transcript.trim() && !link) {
       setError(c.errNeedMedia);
+      return;
+    }
+    if (sourceUrl.trim() && !link) {
+      setError(c.errInvalidUrl);
+      return;
+    }
+    const willBeDocument = file ? isDocumentFile(file) : false;
+    if (willBeDocument && !transcript.trim() && !isPdfFile(file!)) {
+      setError(c.errNeedNoteForFile);
       return;
     }
     setBusy(true);
@@ -529,7 +613,7 @@ export function CaptureForm() {
     try {
       await assertVaultCanCreate(isPro);
 
-      const mediaType = resolveMediaType(file, source);
+      const mediaType = resolveMediaType(file, source, link);
       const vaultSource = (source === "upload" ? "import" : source) as VaultSource;
 
       let thumb: Blob | null = null;
@@ -557,13 +641,22 @@ export function CaptureForm() {
         mediaType,
         source: vaultSource,
         file: file || null,
-        mimeType: file?.type,
+        fileName: file?.name,
+        mimeType:
+          file?.type ||
+          (mediaType === "link"
+            ? "text/uri-list"
+            : mediaType === "document"
+              ? "application/octet-stream"
+              : undefined),
         thumb,
         frames: frames.length ? frames : undefined,
         transcript: transcript.trim() || undefined,
         projectId: projectId || null,
-        sourceUrl: sourceUrl.trim() || null,
-        sourceTitle: sourceTitle.trim() || null,
+        sourceUrl: link || sourceUrl.trim() || null,
+        sourceTitle:
+          sourceTitle.trim() ||
+          (mediaType === "document" && file ? file.name : null),
         clipRect: clipRect || null,
         latitude: attachGps && geo ? geo.latitude : null,
         longitude: attachGps && geo ? geo.longitude : null,
@@ -574,19 +667,44 @@ export function CaptureForm() {
         height,
       });
 
-      // Vision at ingest — image, poster, or first keyframe
+      // Vision at ingest — image/poster; links → URL; documents → note (+ PDF light)
       const visionBlob =
         file?.type.startsWith("image/")
           ? file
-          : frames[0] || thumb;
+          : file?.type.startsWith("video/")
+            ? frames[0] || thumb
+            : null;
 
       try {
-        const analysis = await analyzeViaGateway({
+        const baseOpts = {
           imageBlob: visionBlob,
-          mimeType: visionBlob?.type || "image/jpeg",
+          mimeType:
+            mediaType === "document"
+              ? file?.type || "application/octet-stream"
+              : visionBlob?.type || "image/jpeg",
           transcript: transcript.trim() || undefined,
+          url: mediaType === "link" ? link : null,
+          fileName: mediaType === "document" ? file?.name || null : null,
           projectHints: projects.map((p) => p.name),
-        });
+        };
+        let analysis;
+        try {
+          analysis = await analyzeViaGateway({
+            ...baseOpts,
+            documentBlob:
+              mediaType === "document" && file && isPdfFile(file) ? file : null,
+          });
+        } catch (firstAiErr) {
+          // Large PDF / extract failure — retry with note + filename only
+          if (mediaType === "document" && file && isPdfFile(file)) {
+            analysis = await analyzeViaGateway({
+              ...baseOpts,
+              documentBlob: null,
+            });
+          } else {
+            throw firstAiErr;
+          }
+        }
         await applyAnalysis(memory.id, analysis, {
           projectId: projectId || null,
         });
@@ -674,6 +792,33 @@ export function CaptureForm() {
                 </button>
               </div>
             </div>
+          ) : file && isDocumentFile(file) ? (
+            <div className="relative flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 rounded-xl border border-[var(--line)] bg-[linear-gradient(155deg,var(--paper)_0%,var(--accent-soft)_55%,var(--paper-2)_100%)] px-6 text-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--accent)] shadow-sm">
+                <FileText className="h-7 w-7" />
+              </span>
+              <div className="min-w-0 max-w-full">
+                <p className="truncate font-[family-name:var(--font-serif)] text-xl tracking-tight">
+                  {file.name}
+                </p>
+                <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                  {formatBytes(file.size)}
+                  {file.type ? ` · ${file.type}` : ""}
+                </p>
+                <p className="mt-2 text-xs text-[var(--ink-muted)]">{c.documentHint}</p>
+              </div>
+              <button
+                type="button"
+                className="absolute right-3 top-3 rounded-full bg-black/45 p-2 text-white backdrop-blur-sm"
+                aria-label={c.removeMedia}
+                onClick={() => {
+                  setFile(null);
+                  setError(null);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           ) : (
             <button
               type="button"
@@ -694,7 +839,7 @@ export function CaptureForm() {
             </button>
           )}
 
-          <div className="mt-3 grid grid-cols-4 gap-2">
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
             <button
               type="button"
               className="vm-command-primary"
@@ -752,6 +897,18 @@ export function CaptureForm() {
               <ClipboardPaste className="h-4 w-4" />
               {c.paste}
             </button>
+            <button
+              type="button"
+              className="vm-command col-span-3 sm:col-span-1"
+              title={commandHints.link}
+              aria-label={`${c.link} — ${commandHints.link}`}
+              onFocus={() => setCommandHint("link")}
+              onMouseEnter={() => setCommandHint("link")}
+              onClick={focusLinkField}
+            >
+              <Link2 className="h-4 w-4" />
+              {c.link}
+            </button>
           </div>
           <p className="mt-2.5 min-h-[2.5rem] text-xs leading-snug text-[var(--ink-muted)]">
             {commandHint ? commandHints[commandHint] : c.hintIdle}
@@ -802,7 +959,7 @@ export function CaptureForm() {
           <input
             ref={fileRef}
             type="file"
-            accept="image/*,video/*"
+            accept={`image/*,video/*,${DOCUMENT_ACCEPT}`}
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -814,8 +971,12 @@ export function CaptureForm() {
                     if (prev) URL.revokeObjectURL(prev);
                     return URL.createObjectURL(f);
                   });
-                } else {
+                  setClipRect(null);
+                  setError(null);
+                } else if (f.type.startsWith("image/")) {
                   void setImageFile(f, "import");
+                } else {
+                  setDocumentFile(f);
                 }
               }
               e.target.value = "";
@@ -823,23 +984,39 @@ export function CaptureForm() {
           />
         </div>
 
-        {(sourceUrl || source === "extension" || source === "share") && (
-          <div className="space-y-3 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)]">
+        <div className="space-y-3 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)]">
+          <div>
             <p className="vm-label mb-0">{c.sourcePage}</p>
-            <input
-              className="vm-input"
-              placeholder={c.pageTitle}
-              value={sourceTitle}
-              onChange={(e) => setSourceTitle(e.target.value)}
-            />
-            <input
-              className="vm-input"
-              placeholder="https://…"
-              value={sourceUrl}
-              onChange={(e) => setSourceUrl(e.target.value)}
-            />
+            <p className="text-xs text-[var(--ink-muted)]">{c.linkHint}</p>
           </div>
-        )}
+          <input
+            ref={linkUrlInputRef}
+            className="vm-input"
+            type="url"
+            inputMode="url"
+            autoComplete="url"
+            placeholder="https://…"
+            value={sourceUrl}
+            onChange={(e) => {
+              setSourceUrl(e.target.value);
+              if (e.target.value.trim()) setCommandHint("link");
+            }}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData("text/plain");
+              const url = extractUrl(text);
+              if (url && text.trim() !== url) {
+                e.preventDefault();
+                setSourceUrl(url);
+              }
+            }}
+          />
+          <input
+            className="vm-input"
+            placeholder={c.pageTitle}
+            value={sourceTitle}
+            onChange={(e) => setSourceTitle(e.target.value)}
+          />
+        </div>
 
         <div className="space-y-3 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)]">
           <div className="flex items-center justify-between gap-3">

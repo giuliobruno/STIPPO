@@ -1,6 +1,13 @@
 import type { ClipRect, IntentType, MemoryEntities } from "@/types";
 
-export type VaultMediaType = "image" | "video" | "clip" | "snapshot" | "audio";
+export type VaultMediaType =
+  | "image"
+  | "video"
+  | "clip"
+  | "snapshot"
+  | "audio"
+  | "link"
+  | "document";
 
 export type VaultSource =
   | "camera"

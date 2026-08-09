@@ -3,6 +3,8 @@ export const GUIDE_CLIP_IDS = [
   "photo",
   "video",
   "paste",
+  "link",
+  "file",
   "crop",
   "save",
   "vault",

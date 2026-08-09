@@ -1,11 +1,16 @@
 import OpenAI from "openai";
 import type {
   AudioAnalysisResult,
+  DocumentAnalysisResult,
   ImageAnalysisResult,
   IntentType,
+  LinkAnalysisResult,
   MemoryAnalysisResult,
   MemoryEntities,
 } from "@/types";
+import type { PageContext } from "@/lib/ai/link-fetch";
+import { hostnameFromUrl } from "@/lib/media/url";
+import { fileExtension } from "@/lib/media/files";
 
 const emptyEntities = (): MemoryEntities => ({
   materials: [],
@@ -120,6 +125,123 @@ Return JSON:
 }
 
 /**
+ * Analyze a web link from fetched page metadata (+ optional voice note).
+ */
+export async function analyzeLink(
+  page: PageContext,
+  context?: { voiceTranscript?: string; projectHints?: string[] }
+): Promise<LinkAnalysisResult> {
+  const client = getClient();
+  if (!client) {
+    return mockLinkAnalysis(page, context?.voiceTranscript);
+  }
+
+  const res = await client.chat.completions.create({
+    model: visionModel(),
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Analyze this architecture/design web reference (bookmark).
+URL: ${page.url}
+Site: ${page.siteName || "unknown"}
+Page title: ${page.title || "(none)"}
+Page description: ${page.description || "(none)"}
+Page text snippet: ${page.textSnippet || "(none)"}
+${context?.voiceTranscript ? `Designer voice note: "${context.voiceTranscript}"` : ""}
+${context?.projectHints?.length ? `Known projects: ${context.projectHints.join(", ")}` : ""}
+
+Return JSON:
+{
+  "title": "short professional title (prefer page title if useful)",
+  "description": "1-2 sentence summary of why this link is a useful design reference",
+  "objects": ["notable subjects on the page"],
+  "tags": ["architecture","reference","materials",...],
+  "ocrText": "",
+  "entities": {
+    "materials": [],
+    "people": [],
+    "companies": [],
+    "locations": [],
+    "concepts": [],
+    "projects": []
+  },
+  "projectSuggested": "project name if mentioned or null"
+}`,
+      },
+    ],
+    temperature: 0.2,
+  });
+
+  const raw = res.choices[0]?.message?.content || "{}";
+  return normalizeImageResult(JSON.parse(raw));
+}
+
+export type DocumentContext = {
+  fileName: string;
+  mimeType: string;
+  extractedText?: string;
+};
+
+/**
+ * Analyze a work file (PDF / doc / other) — user note is the primary signal;
+ * filename + optional light PDF text are secondary.
+ */
+export async function analyzeDocument(
+  doc: DocumentContext,
+  context?: { voiceTranscript?: string; projectHints?: string[] }
+): Promise<DocumentAnalysisResult> {
+  const client = getClient();
+  if (!client) {
+    return mockDocumentAnalysis(doc, context?.voiceTranscript);
+  }
+
+  const res = await client.chat.completions.create({
+    model: visionModel(),
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Analyze this architecture/design work file for a searchable vault memory.
+The designer's spoken/typed note is the PRIMARY signal (why they saved it).
+File name and any extracted text are secondary context only.
+
+File name: ${doc.fileName || "(unknown)"}
+MIME type: ${doc.mimeType || "application/octet-stream"}
+Extracted text (may be empty for scans/binaries):
+${(doc.extractedText || "").slice(0, 3500) || "(none)"}
+${context?.voiceTranscript ? `Designer note: "${context.voiceTranscript}"` : "Designer note: (none)"}
+${context?.projectHints?.length ? `Known projects: ${context.projectHints.join(", ")}` : ""}
+
+Return JSON:
+{
+  "title": "short professional title",
+  "description": "1-2 sentence summary of what this file is for as a design reference",
+  "objects": [],
+  "tags": ["document","pdf","specification",...],
+  "ocrText": "useful excerpt from extracted text or empty",
+  "entities": {
+    "materials": [],
+    "people": [],
+    "companies": [],
+    "locations": [],
+    "concepts": [],
+    "projects": []
+  },
+  "projectSuggested": "project name if mentioned or null"
+}`,
+      },
+    ],
+    temperature: 0.2,
+  });
+
+  const raw = res.choices[0]?.message?.content || "{}";
+  return normalizeImageResult(JSON.parse(raw));
+}
+
+/**
  * Analyze voice transcript (native STT already produced the text client-side).
  */
 export async function analyzeTranscript(
@@ -168,22 +290,32 @@ Return JSON:
 
 export async function mergeAnalyses(
   image: ImageAnalysisResult | null,
-  audio: AudioAnalysisResult | null
+  audio: AudioAnalysisResult | null,
+  link?: LinkAnalysisResult | null,
+  document?: DocumentAnalysisResult | null
 ): Promise<MemoryAnalysisResult> {
-  const entities = mergeEntities(image?.entities, audio?.entities);
-  const tags = unique([...(image?.tags || []), ...(audio?.entities.concepts || [])]);
-  const objects = image?.objects || [];
+  const visual = image || link || document || null;
+  const entities = mergeEntities(visual?.entities, audio?.entities);
+  const tags = unique([
+    ...(visual?.tags || []),
+    ...(audio?.entities.concepts || []),
+    ...(link ? ["link", "bookmark"] : []),
+    ...(document ? ["document", "file"] : []),
+  ]);
+  const objects = visual?.objects || [];
   const title =
-    image?.title ||
+    visual?.title ||
     (audio ? titleFromTranscript(audio.transcript) : "Untitled memory");
-  const description = image?.description || audio?.summary || "";
-  const aiSummary = [audio?.summary, image?.description].filter(Boolean).join(" — ");
-  const projectSuggested = audio?.projectSuggested || image?.projectSuggested;
+  const description = visual?.description || audio?.summary || "";
+  const aiSummary = [audio?.summary, visual?.description]
+    .filter(Boolean)
+    .join(" — ");
+  const projectSuggested = audio?.projectSuggested || visual?.projectSuggested;
   const searchText = [
     title,
     description,
     aiSummary,
-    image?.ocrText,
+    visual?.ocrText,
     audio?.transcript,
     ...tags,
     ...objects,
@@ -199,7 +331,7 @@ export async function mergeAnalyses(
     aiSummary,
     objects,
     tags,
-    ocrText: image?.ocrText || "",
+    ocrText: visual?.ocrText || "",
     transcript: audio?.transcript,
     intent: audio?.intent,
     entities,
@@ -291,6 +423,60 @@ function titleFromTranscript(t: string): string {
   const clean = t.trim().replace(/\s+/g, " ");
   if (clean.length <= 60) return clean || "Voice memory";
   return clean.slice(0, 57) + "…";
+}
+
+function mockDocumentAnalysis(
+  doc: DocumentContext,
+  voice?: string
+): DocumentAnalysisResult {
+  const fromVoice = voice ? extractMockEntities(voice) : emptyEntities();
+  const ext = fileExtension(doc.fileName) || "file";
+  const baseName = doc.fileName.replace(/\.[^.]+$/, "") || doc.fileName || "Document";
+  const title = voice ? titleFromTranscript(voice) : baseName;
+  const excerpt = (doc.extractedText || "").slice(0, 160);
+  const description =
+    voice?.slice(0, 220) ||
+    excerpt ||
+    `Work file (${ext}) saved to the vault for later reference.`;
+  return {
+    title: title.slice(0, 120),
+    description: description.slice(0, 400),
+    objects: [],
+    tags: unique(["document", "file", ext, "reference"]),
+    ocrText: (doc.extractedText || "").slice(0, 800),
+    entities: {
+      ...fromVoice,
+      concepts: unique([...fromVoice.concepts, "document-reference"]),
+    },
+    projectSuggested: fromVoice.projects[0],
+  };
+}
+
+function mockLinkAnalysis(
+  page: PageContext,
+  voice?: string
+): LinkAnalysisResult {
+  const fromVoice = voice ? extractMockEntities(voice) : emptyEntities();
+  const host = hostnameFromUrl(page.url) || page.siteName || "web";
+  const title =
+    page.title ||
+    (voice ? titleFromTranscript(voice) : `Reference · ${host}`);
+  const description =
+    page.description ||
+    `Web reference from ${host}${voice ? ` — ${voice.slice(0, 100)}` : ""}.`;
+  return {
+    title: title.slice(0, 120),
+    description: description.slice(0, 400),
+    objects: [],
+    tags: unique(["link", "bookmark", "reference", "architecture", host]),
+    ocrText: "",
+    entities: {
+      ...fromVoice,
+      companies: unique([...fromVoice.companies, host]),
+      concepts: unique([...fromVoice.concepts, "web-reference"]),
+    },
+    projectSuggested: fromVoice.projects[0],
+  };
 }
 
 function mockImageAnalysis(voice?: string): ImageAnalysisResult {

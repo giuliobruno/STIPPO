@@ -1,4 +1,5 @@
 import { CLIP_MESSAGE_TYPE } from "@/lib/media/clip-bridge";
+import { extractUrl } from "@/lib/media/url";
 
 export const runtime = "nodejs";
 
@@ -47,9 +48,15 @@ export async function POST(req: Request) {
 
   const dest = new URL("/app/capture", req.url);
   dest.searchParams.set("source", "share");
-  dest.searchParams.set("mode", "clip");
-  if (text) dest.searchParams.set("note", text);
-  if (url) dest.searchParams.set("sourceUrl", url);
+  const resolvedUrl = url || extractUrl(text) || "";
+  const note =
+    resolvedUrl && text && extractUrl(text) === text.trim() ? "" : text;
+  if (resolvedUrl) {
+    dest.searchParams.set("sourceUrl", resolvedUrl);
+  } else {
+    dest.searchParams.set("mode", "clip");
+  }
+  if (note) dest.searchParams.set("note", note);
   if (title) dest.searchParams.set("sourceTitle", title);
   return Response.redirect(dest, 303);
 }

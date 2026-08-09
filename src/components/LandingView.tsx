@@ -19,6 +19,8 @@ export function LandingView({ deleted, signedIn }: LandingViewProps) {
     { title: L.feature1Title, body: L.feature1Body },
     { title: L.feature2Title, body: L.feature2Body },
     { title: L.feature3Title, body: L.feature3Body },
+    { title: L.feature4Title, body: L.feature4Body },
+    { title: L.feature5Title, body: L.feature5Body },
   ];
 
   const steps = [
@@ -44,6 +46,16 @@ export function LandingView({ deleted, signedIn }: LandingViewProps) {
       id: "paste",
       title: L.cmdPasteTitle,
       steps: [L.cmdPaste1, L.cmdPaste2, L.cmdPaste3],
+    },
+    {
+      id: "link",
+      title: L.cmdLinkTitle,
+      steps: [L.cmdLink1, L.cmdLink2, L.cmdLink3],
+    },
+    {
+      id: "file",
+      title: L.cmdFileTitle,
+      steps: [L.cmdFile1, L.cmdFile2, L.cmdFile3],
     },
     {
       id: "crop",
@@ -214,7 +226,7 @@ export function LandingView({ deleted, signedIn }: LandingViewProps) {
             {L.whatTitle}
           </h2>
           <p className="mt-3 max-w-2xl text-[var(--ink-muted)]">{L.whatIntro}</p>
-          <div className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-3">
+          <div className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((item, i) => (
               <div key={item.title}>
                 <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]">

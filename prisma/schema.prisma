@@ -98,7 +98,7 @@ model Memory {
   description String?
 
   // Media
-  mediaType      String // image | audio | document
+  mediaType      String // image | audio | document | link | video | clip | snapshot
   originalKey    String // full-res (local-first)
   thumbnailKey   String? // lightweight preview (synced / cross-device)
   mimeType       String?

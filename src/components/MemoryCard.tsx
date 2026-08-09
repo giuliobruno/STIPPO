@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { FileText, Link2 } from "lucide-react";
 import { relativeTime } from "@/lib/utils";
+import { hostnameFromUrl } from "@/lib/media/url";
 
 export interface MemoryCardData {
   id: string;
@@ -10,9 +12,18 @@ export interface MemoryCardData {
   projectName?: string | null;
   createdAt: string;
   status?: string;
+  mediaType?: string | null;
+  sourceUrl?: string | null;
+  sourceTitle?: string | null;
 }
 
 export function MemoryCard({ memory }: { memory: MemoryCardData }) {
+  const isLink =
+    memory.mediaType === "link" ||
+    (!memory.imageUrl && Boolean(memory.sourceUrl) && memory.mediaType !== "document");
+  const isDocument = memory.mediaType === "document";
+  const host = hostnameFromUrl(memory.sourceUrl);
+
   return (
     <Link
       href={`/app/memories/${memory.id}`}
@@ -26,6 +37,24 @@ export function MemoryCard({ memory }: { memory: MemoryCardData }) {
             alt={memory.title}
             className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.03]"
           />
+        ) : isDocument ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 bg-[linear-gradient(155deg,var(--paper)_0%,var(--accent-soft)_55%,var(--paper-2)_100%)] px-6 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--accent)] shadow-sm">
+              <FileText className="h-5 w-5" />
+            </span>
+            <p className="line-clamp-2 font-[family-name:var(--font-serif)] text-lg tracking-tight text-[var(--ink)]">
+              {memory.sourceTitle || memory.title || "File"}
+            </p>
+          </div>
+        ) : isLink ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 bg-[linear-gradient(155deg,var(--paper)_0%,var(--accent-soft)_55%,var(--paper-2)_100%)] px-6 text-center">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--accent)] shadow-sm">
+              <Link2 className="h-5 w-5" />
+            </span>
+            <p className="font-[family-name:var(--font-serif)] text-lg tracking-tight text-[var(--ink)]">
+              {host || "Link"}
+            </p>
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center bg-[linear-gradient(145deg,var(--paper-2),var(--accent-soft))] px-6 text-center">
             <p className="font-[family-name:var(--font-serif)] text-lg text-[var(--ink-muted)]">

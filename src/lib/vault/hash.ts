@@ -25,7 +25,15 @@ export function mediaExtension(mimeType: string, mediaType: string): string {
   if (mimeType.includes("mpeg") || mimeType.includes("mp3")) return ".mp3";
   if (mimeType.includes("m4a") || mimeType.includes("mp4a")) return ".m4a";
   if (mimeType.includes("wav")) return ".wav";
+  if (mimeType.includes("pdf")) return ".pdf";
+  if (mimeType.includes("msword")) return ".doc";
+  if (mimeType.includes("wordprocessingml")) return ".docx";
+  if (mimeType.includes("spreadsheetml")) return ".xlsx";
+  if (mimeType.includes("presentationml")) return ".pptx";
+  if (mimeType.includes("text/plain")) return ".txt";
+  if (mimeType.includes("zip")) return ".zip";
   if (mediaType === "video") return ".mp4";
   if (mediaType === "audio") return ".m4a";
+  if (mediaType === "document") return ".bin";
   return ".bin";
 }
