@@ -9,7 +9,6 @@ import {
   Crop,
   FileText,
   Images,
-  Link2,
   MapPin,
   Mic,
   MicOff,
@@ -38,7 +37,9 @@ import {
   readExifGps,
   type GeoPoint,
 } from "@/lib/media/geo";
+import { prefersNativeCapture } from "@/lib/media/device";
 import { CropEditor } from "@/components/CropEditor";
+import { LiveCamera } from "@/components/LiveCamera";
 import {
   analyzeViaGateway,
   applyAnalysis,
@@ -126,6 +127,7 @@ export function CaptureForm() {
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceTitle, setSourceTitle] = useState("");
   const [commandHint, setCommandHint] = useState<CommandHint | null>(null);
+  const [liveCamera, setLiveCamera] = useState<"photo" | "video" | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [projectListening, setProjectListening] = useState(false);
@@ -392,6 +394,13 @@ export function CaptureForm() {
             setSourceUrl(url);
             setSource((prev) => (prev === "camera" ? "paste" : prev));
             setCommandHint("link");
+            queueMicrotask(() => {
+              linkUrlInputRef.current?.focus();
+              linkUrlInputRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            });
             return;
           }
         }
@@ -404,6 +413,13 @@ export function CaptureForm() {
         setSourceUrl(url);
         setSource((prev) => (prev === "camera" ? "paste" : prev));
         setCommandHint("link");
+        queueMicrotask(() => {
+          linkUrlInputRef.current?.focus();
+          linkUrlInputRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        });
         return;
       }
     } catch {
@@ -412,11 +428,37 @@ export function CaptureForm() {
     setError(c.errPasteFallback);
   }
 
-  function focusLinkField() {
-    setCommandHint("link");
+  function openWorkCamera(mode: "photo" | "video") {
+    setCommandHint(mode);
     setError(null);
-    linkUrlInputRef.current?.focus();
-    linkUrlInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (prefersNativeCapture()) {
+      if (mode === "photo") cameraRef.current?.click();
+      else videoRef.current?.click();
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError(c.errCameraUnavailable);
+      if (mode === "photo") cameraRef.current?.click();
+      else videoRef.current?.click();
+      return;
+    }
+    setLiveCamera(mode);
+  }
+
+  async function onLiveCapture(f: File) {
+    setLiveCamera(null);
+    if (f.type.startsWith("video/")) {
+      setFile(f);
+      setSource("camera");
+      setPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(f);
+      });
+      setClipRect(null);
+      setError(null);
+      return;
+    }
+    await setImageFile(f, "camera");
   }
 
   async function createProjectInline() {
@@ -736,6 +778,15 @@ export function CaptureForm() {
         />
       ) : null}
 
+      {liveCamera ? (
+        <LiveCamera
+          mode={liveCamera}
+          maxVideoMs={isPro ? PRO_VIDEO_MAX_MS : FREE_VIDEO_MAX_MS}
+          onClose={() => setLiveCamera(null)}
+          onCapture={(f) => void onLiveCapture(f)}
+        />
+      ) : null}
+
       <form onSubmit={onSubmit} className="mx-auto max-w-xl space-y-6">
         <div className="flex items-end justify-between gap-3">
           <div>
@@ -822,7 +873,7 @@ export function CaptureForm() {
           ) : (
             <button
               type="button"
-              onClick={() => cameraRef.current?.click()}
+              onClick={() => openWorkCamera("photo")}
               className="group flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--line)] bg-[linear-gradient(160deg,var(--paper)_0%,var(--accent-soft)_100%)] px-6 text-center transition hover:border-[var(--accent)]"
             >
               <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-[0_8px_20px_rgba(26,51,84,0.25)] transition group-hover:scale-105">
@@ -839,7 +890,7 @@ export function CaptureForm() {
             </button>
           )}
 
-          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+          <div className="mt-3 grid grid-cols-4 gap-1.5 sm:gap-2">
             <button
               type="button"
               className="vm-command-primary"
@@ -847,10 +898,7 @@ export function CaptureForm() {
               aria-label={`${c.photo} — ${commandHints.photo}`}
               onFocus={() => setCommandHint("photo")}
               onMouseEnter={() => setCommandHint("photo")}
-              onClick={() => {
-                setCommandHint("photo");
-                cameraRef.current?.click();
-              }}
+              onClick={() => openWorkCamera("photo")}
             >
               <Camera className="h-4 w-4" />
               {c.photo}
@@ -862,10 +910,7 @@ export function CaptureForm() {
               aria-label={`${c.video} — ${commandHints.video}`}
               onFocus={() => setCommandHint("video")}
               onMouseEnter={() => setCommandHint("video")}
-              onClick={() => {
-                setCommandHint("video");
-                videoRef.current?.click();
-              }}
+              onClick={() => openWorkCamera("video")}
             >
               <Video className="h-4 w-4" />
               {c.video}
@@ -896,18 +941,6 @@ export function CaptureForm() {
             >
               <ClipboardPaste className="h-4 w-4" />
               {c.paste}
-            </button>
-            <button
-              type="button"
-              className="vm-command col-span-3 sm:col-span-1"
-              title={commandHints.link}
-              aria-label={`${c.link} — ${commandHints.link}`}
-              onFocus={() => setCommandHint("link")}
-              onMouseEnter={() => setCommandHint("link")}
-              onClick={focusLinkField}
-            >
-              <Link2 className="h-4 w-4" />
-              {c.link}
             </button>
           </div>
           <p className="mt-2.5 min-h-[2.5rem] text-xs leading-snug text-[var(--ink-muted)]">
