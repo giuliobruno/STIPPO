@@ -5,7 +5,7 @@ import {
   GEO_LOCALE_COOKIE,
   localeFromCountry,
 } from "@/lib/geo-locale";
-import { clientIpFromHeaders, rateLimitSync } from "@/lib/rate-limit";
+import { clientIpFromHeaders, rateLimitSync } from "@/lib/rate-limit-edge";
 
 /**
  * Global security headers + light edge rate damping for auth/AI/share abuse paths.

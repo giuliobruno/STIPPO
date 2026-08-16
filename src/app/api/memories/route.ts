@@ -101,13 +101,13 @@ export async function POST(req: NextRequest) {
       const storage = getStorage();
       let originalKey = "";
       let thumbnailKey: string | null = null;
-      let fileSize = buffer.length;
-      let mediaType: "image" | "audio" | "document" = mimeType.startsWith("image/")
+      const fileSize = buffer.length;
+      const mediaType: "image" | "audio" | "document" = mimeType.startsWith("image/")
         ? "image"
         : mimeType.startsWith("audio/")
           ? "audio"
           : "document";
-      let imageBuffer: Buffer | undefined = mediaType === "image" ? buffer : undefined;
+      const imageBuffer: Buffer | undefined = mediaType === "image" ? buffer : undefined;
 
       const stored = await storage.put(user.id, buffer, {
         filename: file.name || "capture",

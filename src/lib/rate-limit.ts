@@ -1,21 +1,18 @@
 /**
  * Rate limiter: Upstash Redis when configured, else in-memory per isolate.
  * Prefer UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN in production.
+ * Node.js route handlers only — middleware uses rate-limit-edge.ts.
  */
 
 import { Redis } from "@upstash/redis";
+import {
+  clientIpFromHeaders,
+  rateLimitSync,
+  type RateLimitResult,
+} from "@/lib/rate-limit-edge";
 
-export type RateLimitResult = {
-  ok: boolean;
-  remaining: number;
-  resetAt: number;
-  limit: number;
-};
-
-type Bucket = { count: number; resetAt: number };
-
-const memoryBuckets = new Map<string, Bucket>();
-const MAX_KEYS = 10_000;
+export type { RateLimitResult };
+export { clientIpFromHeaders, rateLimitSync };
 
 let redis: Redis | null | undefined;
 
@@ -31,40 +28,6 @@ function getRedis(): Redis | null {
   return redis;
 }
 
-function memoryLimit(
-  key: string,
-  opts: { limit: number; windowMs: number }
-): RateLimitResult {
-  const now = Date.now();
-  let bucket = memoryBuckets.get(key);
-  if (!bucket || bucket.resetAt <= now) {
-    bucket = { count: 0, resetAt: now + opts.windowMs };
-    memoryBuckets.set(key, bucket);
-    pruneMemory(now);
-  }
-  bucket.count += 1;
-  return {
-    ok: bucket.count <= opts.limit,
-    remaining: Math.max(0, opts.limit - bucket.count),
-    resetAt: bucket.resetAt,
-    limit: opts.limit,
-  };
-}
-
-function pruneMemory(now: number) {
-  if (memoryBuckets.size < MAX_KEYS) return;
-  for (const [k, v] of memoryBuckets) {
-    if (v.resetAt <= now) memoryBuckets.delete(k);
-  }
-  if (memoryBuckets.size >= MAX_KEYS) {
-    let i = 0;
-    for (const k of memoryBuckets.keys()) {
-      memoryBuckets.delete(k);
-      if (++i > MAX_KEYS / 2) break;
-    }
-  }
-}
-
 async function redisLimit(
   client: Redis,
   key: string,
@@ -76,8 +39,7 @@ async function redisLimit(
     await client.pexpire(redisKey, opts.windowMs);
   }
   const pttl = await client.pttl(redisKey);
-  const resetAt =
-    Date.now() + (pttl > 0 ? pttl : opts.windowMs);
+  const resetAt = Date.now() + (pttl > 0 ? pttl : opts.windowMs);
   return {
     ok: count <= opts.limit,
     remaining: Math.max(0, opts.limit - count),
@@ -99,40 +61,7 @@ export async function rateLimit(
       console.error("[rate-limit] Upstash error, falling back to memory", err);
     }
   }
-  return memoryLimit(key, opts);
-}
-
-/**
- * Sync helper for edge middleware (no Upstash REST in Edge without fetch).
- * Uses memory isolate buckets; route handlers still use async Redis.
- */
-export function rateLimitSync(
-  key: string,
-  opts: { limit: number; windowMs: number }
-): RateLimitResult {
-  return memoryLimit(key, opts);
-}
-
-/**
- * Prefer platform-provided client IP (Vercel/CF), then right-most
- * X-Forwarded-For hop when a trusted proxy stripped the left.
- */
-export function clientIpFromHeaders(headers: Headers): string {
-  const vercel = headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
-  if (vercel) return vercel;
-  const cf = headers.get("cf-connecting-ip")?.trim();
-  if (cf) return cf;
-  const real = headers.get("x-real-ip")?.trim();
-  if (real) return real;
-  const forwarded = headers.get("x-forwarded-for");
-  if (forwarded) {
-    const parts = forwarded.split(",").map((p) => p.trim()).filter(Boolean);
-    // Right-most is typically the last trusted proxy's view of the client
-    // when the platform appends; fall back to left-most for simple setups.
-    if (parts.length === 1) return parts[0]!;
-    return parts[parts.length - 1]!;
-  }
-  return "unknown";
+  return rateLimitSync(key, opts);
 }
 
 export function clientKey(req: Request, suffix: string): string {
