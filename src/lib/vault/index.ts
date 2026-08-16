@@ -207,6 +207,63 @@ export async function applyAnalysis(
   return hydrateUrls(updated);
 }
 
+export async function updateVaultMemory(
+  id: string,
+  patch: Partial<
+    Pick<VaultMemory, "title" | "description" | "sourceUrl" | "sourceTitle">
+  >
+): Promise<VaultMemory> {
+  const existing = await getMemory(id);
+  if (!existing) throw new Error("Memory not found in vault");
+
+  const title =
+    patch.title !== undefined ? patch.title.trim() || existing.title : existing.title;
+  const description =
+    patch.description !== undefined
+      ? (patch.description?.trim() || null)
+      : existing.description;
+  const sourceUrl =
+    patch.sourceUrl !== undefined
+      ? (patch.sourceUrl?.trim() || null)
+      : existing.sourceUrl;
+  const sourceTitle =
+    patch.sourceTitle !== undefined
+      ? (patch.sourceTitle?.trim() || null)
+      : existing.sourceTitle;
+
+  const searchText = [
+    title,
+    description,
+    existing.aiSummary,
+    existing.transcript,
+    existing.ocrText,
+    existing.tags.join(" "),
+    existing.objects.join(" "),
+    Object.values(existing.entities).flat().join(" "),
+    existing.placeName,
+    sourceTitle,
+    sourceUrl,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const updated: VaultMemory = {
+    ...existing,
+    title,
+    description,
+    sourceUrl,
+    sourceTitle,
+    searchText,
+    updatedAt: new Date().toISOString(),
+    syncState: existing.syncState === "synced" ? "queued" : existing.syncState,
+  };
+
+  await putMemory(updated);
+  await enqueuePush(id);
+  return hydrateUrls(updated);
+}
+
 export async function markMemoryFailed(
   memoryId: string,
   message: string

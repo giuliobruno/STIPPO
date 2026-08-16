@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, Link2 } from "lucide-react";
+import { FileText, Link2, SquarePen } from "lucide-react";
 import { relativeTime } from "@/lib/utils";
 import { hostnameFromUrl } from "@/lib/media/url";
 
@@ -98,22 +98,33 @@ export function MemoryCard({ memory }: { memory: MemoryCardData }) {
     </>
   );
 
-  if (openExternal && memory.sourceUrl) {
-    return (
-      <a
-        href={memory.sourceUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={className}
-      >
-        {body}
-      </a>
-    );
-  }
-
   return (
-    <Link href={`/app/memories/${memory.id}`} className={className}>
-      {body}
-    </Link>
+    <div className="relative">
+      {openExternal && memory.sourceUrl ? (
+        <a
+          href={memory.sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={className}
+        >
+          {body}
+        </a>
+      ) : (
+        <Link href={`/app/memories/${memory.id}`} className={className}>
+          {body}
+        </Link>
+      )}
+      {openExternal ? (
+        <Link
+          href={`/app/memories/${memory.id}`}
+          aria-label="Edit memory details"
+          title="Edit details"
+          className="absolute right-2.5 top-2.5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--surface)]/95 text-[var(--ink)] shadow-sm backdrop-blur transition hover:bg-[var(--surface)] hover:text-[var(--accent)]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <SquarePen className="h-4 w-4" />
+        </Link>
+      ) : null}
+    </div>
   );
 }
