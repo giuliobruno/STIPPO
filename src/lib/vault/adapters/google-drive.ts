@@ -9,6 +9,7 @@ import {
   secureRemove,
   secureSet,
 } from "@/lib/vault/secure-store";
+import { getVaultOAuthConfig } from "@/lib/vault/oauth-config";
 
 const TOKEN_KEY = "stippo_gdrive_token";
 const FOLDER_KEY = "stippo_gdrive_folder";
@@ -22,8 +23,8 @@ type TokenBundle = {
 
 /**
  * Google Drive adapter — scope drive.file (only Stippo folder).
- * Uses Google Identity Services token client when GOOGLE_CLIENT_ID is set
- * via NEXT_PUBLIC_GOOGLE_CLIENT_ID.
+ * Uses Google Identity Services token client; client ID comes from
+ * /api/vault/oauth-config (GOOGLE_CLIENT_ID on the server).
  */
 export function createGoogleDriveAdapter(): VaultSyncAdapter {
   let folderId: string | null = null;
@@ -323,10 +324,11 @@ async function getValidToken(): Promise<string> {
 }
 
 async function requestAccessToken(): Promise<TokenBundle> {
-  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const cfg = await getVaultOAuthConfig();
+  const clientId = cfg.googleDrive?.clientId;
   if (!clientId) {
     throw new Error(
-      "Set NEXT_PUBLIC_GOOGLE_CLIENT_ID to connect Google Drive. Create an OAuth client in Google Cloud Console with Drive API enabled."
+      "Google Drive non è configurato su questo server. Contatta chi gestisce Stippo."
     );
   }
 

@@ -1,8 +1,8 @@
 # Stippo Vault — Piano d'azione
 
 > **Status implementazione (codebase):** Fasi 0–6 scaffoldate.  
-> Vault locale + AI gateway + Drive/local adapters + video/clip + Studio hooks sono nel codice.  
-> Produzione Drive richiede `NEXT_PUBLIC_GOOGLE_CLIENT_ID` + verifica OAuth Google.
+> Vault locale + AI gateway + Drive / OneDrive / Dropbox / local adapters + video/clip + Studio hooks sono nel codice.  
+> Produzione cloud richiede i Client ID OAuth in `.env` (`GOOGLE_CLIENT_ID`, `MSAL_CLIENT_ID`, `DROPBOX_APP_KEY`) + redirect URI verificati.
 
 > **Posizionamento:** app di lavoro per architetti. Archivio visivo separato dal rullino personale.  
 > **Storage:** cartella vault sul cloud dell'utente (BYOS). Server Stippo = auth + billing + AI gateway.  
