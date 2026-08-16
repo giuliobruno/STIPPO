@@ -20,8 +20,6 @@ import {
   getLocalFolderPath,
   setLocalFolderPath,
 } from "@/lib/vault/adapters/local-folder";
-import { dropboxOAuthPending } from "@/lib/vault/adapters/dropbox";
-import { oneDriveOAuthPending } from "@/lib/vault/adapters/onedrive";
 import {
   clearVaultOAuthConfigCache,
   getVaultOAuthConfig,
@@ -40,14 +38,12 @@ export function VaultSetupPanel() {
   const [oauth, setOauth] = useState<VaultOAuthConfig | null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [googleClientId, setGoogleClientId] = useState("");
-  const [dropboxAppKey, setDropboxAppKey] = useState("");
-  const [oneDriveClientId, setOneDriveClientId] = useState("");
 
   async function reloadOauth() {
     clearVaultOAuthConfigCache();
     const cfg = await getVaultOAuthConfig();
     setOauth(cfg);
-    if (!cfg.meta?.anyConfigured) setShowSetup(true);
+    if (!cfg.googleDrive?.clientId) setShowSetup(true);
     return cfg;
   }
 
@@ -71,29 +67,6 @@ export function VaultSetupPanel() {
       setPathDraft(
         m.cloudFolderPath || getLocalFolderPath() || m.cloudFolderName || ""
       );
-
-      if (oneDriveOAuthPending()) {
-        setBusy(true);
-        try {
-          await finishConnect("onedrive");
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "OneDrive non riuscito");
-        } finally {
-          setBusy(false);
-        }
-        return;
-      }
-
-      if (dropboxOAuthPending()) {
-        setBusy(true);
-        try {
-          await finishConnect("dropbox");
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Dropbox non riuscito");
-        } finally {
-          setBusy(false);
-        }
-      }
     });
   }, []);
 
@@ -101,9 +74,6 @@ export function VaultSetupPanel() {
     meta?.cloudProvider && meta.cloudProvider !== "none" ? meta : null;
 
   const driveReady = Boolean(oauth?.googleDrive?.clientId);
-  const dropboxReady = Boolean(oauth?.dropbox?.appKey);
-  const oneDriveReady = Boolean(oauth?.oneDrive?.clientId);
-  const anyCloudReady = driveReady || dropboxReady || oneDriveReady;
 
   async function finishConnect(provider: CloudProviderId) {
     const location = await connectCloud(provider);
@@ -145,18 +115,6 @@ export function VaultSetupPanel() {
           "Google Drive non è ancora configurato. Incolla il Client ID qui sotto (una sola volta)."
         );
       }
-      if (provider === "onedrive" && !oneDriveReady) {
-        setShowSetup(true);
-        throw new Error(
-          "OneDrive non è ancora configurato. Incolla il Client ID qui sotto (una sola volta)."
-        );
-      }
-      if (provider === "dropbox" && !dropboxReady) {
-        setShowSetup(true);
-        throw new Error(
-          "Dropbox non è ancora configurato. Incolla l’App key qui sotto (una sola volta)."
-        );
-      }
       await finishConnect(provider);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Qualcosa non ha funzionato");
@@ -173,17 +131,15 @@ export function VaultSetupPanel() {
     try {
       const cfg = await saveVaultOAuthConfig({
         googleClientId,
-        dropboxAppKey,
-        oneDriveClientId,
       });
       setOauth(cfg);
-      if (cfg.meta?.anyConfigured) {
+      if (cfg.googleDrive?.clientId) {
         setShowSetup(false);
         setMessage(
-          "Cloud configurato. Ora puoi premere Google Drive, OneDrive o Dropbox."
+          "Google Drive configurato. Ora puoi premere “Usa Google Drive”."
         );
       } else {
-        setMessage("Salvato. Inserisci almeno un Client ID per attivare un cloud.");
+        setMessage("Inserisci un Client ID Google valido per attivarlo.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Salvataggio non riuscito");
@@ -317,8 +273,7 @@ export function VaultSetupPanel() {
             </div>
           ) : (
             <p className="text-sm text-[var(--ink-muted)]">
-              Le foto vanno sul <strong>tuo</strong>{" "}
-              {providerShortName(connected.cloudProvider)}, nella cartella
+              Le foto vanno sul <strong>tuo</strong> Google Drive, nella cartella
               Stippo. Non finiscono sul server di Stippo.
             </p>
           )}
@@ -364,18 +319,17 @@ export function VaultSetupPanel() {
         </div>
       ) : (
         <div className="space-y-4">
-          {!anyCloudReady || showSetup ? (
+          {!driveReady || showSetup ? (
             <div className="vm-card space-y-4 p-5">
               <div className="flex items-start gap-2">
                 <Settings2 className="mt-0.5 h-5 w-5 shrink-0 text-[var(--ink-muted)]" />
                 <div>
                   <p className="font-medium text-[var(--ink)]">
-                    Attiva i cloud (una sola volta)
+                    Attiva Google Drive (una sola volta)
                   </p>
                   <p className="mt-1 text-sm text-[var(--ink-muted)]">
-                    Serve un Client ID pubblico dall’app OAuth. Gli utenti poi
-                    fanno solo login sul loro account. Puoi configurare anche
-                    solo Google Drive.
+                    Incolla il Client ID OAuth dell’app. Poi ogni utente entra
+                    col proprio Gmail.
                   </p>
                 </div>
               </div>
@@ -424,61 +378,6 @@ export function VaultSetupPanel() {
                   </p>
                 </div>
 
-                <div>
-                  <label className="vm-label" htmlFor="onedrive-client-id">
-                    OneDrive — Application (client) ID
-                  </label>
-                  <input
-                    id="onedrive-client-id"
-                    className="vm-input font-mono text-xs"
-                    value={oneDriveClientId}
-                    onChange={(e) => setOneDriveClientId(e.target.value)}
-                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    spellCheck={false}
-                    disabled={Boolean(oauth?.meta?.lockedByEnv?.oneDriveClientId)}
-                  />
-                  <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
-                    Azure Portal → App registration (SPA) · Redirect URI:{" "}
-                    <code className="text-[11px]">
-                      {typeof window !== "undefined"
-                        ? `${window.location.origin}/app/vault`
-                        : "https://www.stippo.app/app/vault"}
-                    </code>
-                  </p>
-                </div>
-
-                <div>
-                  <label className="vm-label" htmlFor="dropbox-app-key">
-                    Dropbox — App key
-                  </label>
-                  <input
-                    id="dropbox-app-key"
-                    className="vm-input font-mono text-xs"
-                    value={dropboxAppKey}
-                    onChange={(e) => setDropboxAppKey(e.target.value)}
-                    placeholder="abcdefghijklmno"
-                    spellCheck={false}
-                    disabled={Boolean(oauth?.meta?.lockedByEnv?.dropboxAppKey)}
-                  />
-                  <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
-                    <a
-                      className="underline"
-                      href="https://www.dropbox.com/developers/apps"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Dropbox App Console
-                    </a>
-                    {" · "}
-                    Redirect:{" "}
-                    <code className="text-[11px]">
-                      {typeof window !== "undefined"
-                        ? `${window.location.origin}/app/vault`
-                        : "https://www.stippo.app/app/vault"}
-                    </code>
-                  </p>
-                </div>
-
                 <button
                   type="submit"
                   className="vm-btn-primary w-full"
@@ -488,7 +387,7 @@ export function VaultSetupPanel() {
                   Salva e attiva
                 </button>
 
-                {anyCloudReady ? (
+                {driveReady ? (
                   <button
                     type="button"
                     className="vm-btn-ghost w-full"
@@ -506,7 +405,8 @@ export function VaultSetupPanel() {
               Passo 1 · Telefono o PC
             </p>
             <p className="text-base text-[var(--ink)]">
-              Scegli il tuo cloud. Entri col <strong>tuo</strong> account. Fine.
+              Premi il pulsante. Si apre Google. Entri col <strong>tuo</strong>{" "}
+              Gmail. Fine.
             </p>
 
             <button
@@ -519,36 +419,18 @@ export function VaultSetupPanel() {
               Usa Google Drive
             </button>
 
-            <button
-              type="button"
-              className="vm-btn-secondary w-full"
-              disabled={busy || !oneDriveReady}
-              onClick={() => void connect("onedrive")}
-            >
-              Usa OneDrive
-            </button>
-
-            <button
-              type="button"
-              className="vm-btn-secondary w-full"
-              disabled={busy || !dropboxReady}
-              onClick={() => void connect("dropbox")}
-            >
-              Usa Dropbox
-            </button>
-
-            {anyCloudReady ? (
+            {driveReady ? (
               <button
                 type="button"
                 className="vm-btn-ghost w-full text-sm"
                 onClick={() => setShowSetup(true)}
               >
-                Modifica Client ID cloud
+                Modifica Client ID Google
               </button>
             ) : (
               <p className="text-sm text-[var(--ink-muted)]">
-                Compila il riquadro sopra per attivare i pulsanti. Oppure usa la
-                cartella sul PC qui sotto.
+                Compila il riquadro sopra per attivare Google Drive. Oppure usa
+                la cartella sul PC qui sotto.
               </p>
             )}
           </div>
@@ -558,8 +440,8 @@ export function VaultSetupPanel() {
               Sempre disponibile sul computer
             </p>
             <p className="text-sm text-[var(--ink-muted)]">
-              Scegli una cartella già dentro Drive / OneDrive / Dropbox sul PC
-              (senza login cloud in Stippo). Funziona subito.
+              Scegli una cartella già dentro Google Drive sul PC (senza login
+              Google in Stippo). Funziona subito.
             </p>
             <button
               type="button"
@@ -597,11 +479,11 @@ export function VaultSetupPanel() {
       <div className="space-y-2 px-1 text-sm text-[var(--ink-muted)]">
         <p className="font-medium text-[var(--ink)]">In due parole</p>
         <p>
-          1. Configuri il cloud una volta (o scegli una cartella sul PC).
+          1. Colleghi Google Drive una volta (o scegli una cartella sul PC).
           <br />
           2. Fai le foto in Stippo.
           <br />
-          3. Le ritrovi sul tuo Drive / OneDrive / Dropbox.
+          3. Le ritrovi sul tuo Drive.
         </p>
       </div>
     </div>
@@ -620,16 +502,5 @@ function providerLabel(id: string): string {
       return "OneDrive";
     default:
       return id;
-  }
-}
-
-function providerShortName(id: string): string {
-  switch (id) {
-    case "dropbox":
-      return "Dropbox";
-    case "onedrive":
-      return "OneDrive";
-    default:
-      return "Google Drive";
   }
 }
