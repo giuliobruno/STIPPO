@@ -14,6 +14,7 @@ import type { VaultMemory } from "@/lib/vault/types";
 import { processSyncQueue } from "@/lib/vault/sync";
 import { hostnameFromUrl, normalizeHttpUrl } from "@/lib/media/url";
 import { formatBytes } from "@/lib/media/files";
+import { usefulTags } from "@/lib/media/tags";
 
 export function VaultMemoryDetail({ id }: { id: string }) {
   const router = useRouter();
@@ -156,6 +157,7 @@ export function VaultMemoryDetail({ id }: { id: string }) {
   const showLinkEditor =
     memory.mediaType === "link" || Boolean(memory.sourceUrl) || Boolean(sourceUrl);
   const openableUrl = normalizeHttpUrl(sourceUrl) || memory.sourceUrl;
+  const tags = usefulTags(memory.tags, { sourceUrl: memory.sourceUrl });
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -218,30 +220,52 @@ export function VaultMemoryDetail({ id }: { id: string }) {
           ) : null}
         </div>
       ) : memory.mediaType === "link" ? (
-        openableUrl ? (
-          <a
-            href={openableUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="vm-media-frame flex aspect-[16/9] w-full flex-col items-center justify-center gap-3 bg-[linear-gradient(155deg,var(--paper)_0%,var(--accent-soft)_55%,var(--paper-2)_100%)] px-6 text-center transition hover:brightness-[0.98]"
-          >
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--accent)] shadow-sm">
-              <Link2 className="h-6 w-6" />
-            </span>
-            <p className="font-[family-name:var(--font-serif)] text-2xl tracking-tight">
-              {host || "Link"}
-            </p>
-          </a>
-        ) : (
-          <div className="vm-media-frame flex aspect-[16/9] w-full flex-col items-center justify-center gap-3 bg-[linear-gradient(155deg,var(--paper)_0%,var(--accent-soft)_55%,var(--paper-2)_100%)] px-6 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--accent)] shadow-sm">
-              <Link2 className="h-6 w-6" />
-            </span>
-            <p className="font-[family-name:var(--font-serif)] text-2xl tracking-tight">
-              {host || "Link"}
-            </p>
+        <div className="vm-media-frame flex aspect-[16/9] w-full flex-col items-center justify-center gap-3 bg-[linear-gradient(155deg,var(--paper)_0%,var(--accent-soft)_55%,var(--paper-2)_100%)] px-6 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--accent)] shadow-sm">
+            <Link2 className="h-6 w-6" />
+          </span>
+          <p className="font-[family-name:var(--font-serif)] text-2xl tracking-tight">
+            {host || "Link"}
+          </p>
+        </div>
+      ) : null}
+
+      {showLinkEditor ? (
+        <div className="space-y-2 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)]">
+          <div className="flex items-center justify-between gap-3">
+            <p className="vm-label mb-0">Web address</p>
+            {openableUrl ? (
+              <a
+                href={openableUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--accent)]"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Open
+              </a>
+            ) : null}
           </div>
-        )
+          <input
+            type="url"
+            value={sourceUrl}
+            onChange={(e) => {
+              setSourceUrl(e.target.value);
+              if (urlError) setUrlError(null);
+            }}
+            onBlur={onSourceUrlBlur}
+            aria-label="Web address"
+            placeholder="https://…"
+            className="w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-white px-3 py-2.5 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--accent)]"
+          />
+          {urlError ? (
+            <p className="text-xs text-[var(--danger)]">{urlError}</p>
+          ) : (
+            <p className="text-[11px] text-[var(--ink-muted)]">
+              Tap the address to edit it
+            </p>
+          )}
+        </div>
       ) : null}
 
       <div className="space-y-2">
@@ -282,48 +306,9 @@ export function VaultMemoryDetail({ id }: { id: string }) {
         ) : null}
       </div>
 
-      {showLinkEditor ? (
-        <div className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)]">
-          <div className="flex items-start gap-3">
-            {openableUrl ? (
-              <a
-                href={openableUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-0.5 shrink-0 text-[var(--accent)] transition hover:opacity-80"
-                aria-label="Open link in new tab"
-                title="Open in new tab"
-              >
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            ) : (
-              <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-[var(--ink-muted)]" />
-            )}
-            <div className="min-w-0 flex-1 space-y-1">
-              <p className="vm-label mb-1">{memory.sourceTitle || host || "Source"}</p>
-              <input
-                type="url"
-                value={sourceUrl}
-                onChange={(e) => {
-                  setSourceUrl(e.target.value);
-                  if (urlError) setUrlError(null);
-                }}
-                onBlur={onSourceUrlBlur}
-                aria-label="Link address"
-                placeholder="https://…"
-                className="w-full break-all border-0 bg-transparent p-0 text-sm text-[var(--accent)] outline-none ring-0 placeholder:text-[var(--ink-muted)] focus:ring-0"
-              />
-              {urlError ? (
-                <p className="text-xs text-[var(--danger)]">{urlError}</p>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {memory.tags.length ? (
+      {tags.length ? (
         <div className="flex flex-wrap gap-2">
-          {memory.tags.map((t) => (
+          {tags.map((t) => (
             <span key={t} className="vm-chip">
               {t}
             </span>

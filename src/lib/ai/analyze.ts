@@ -157,7 +157,7 @@ Return JSON:
   "title": "short professional title (prefer page title if useful)",
   "description": "1-2 sentence summary of why this link is a useful design reference",
   "objects": ["notable subjects on the page"],
-  "tags": ["architecture","reference","materials",...],
+  "tags": ["materials","facade","suppliers",...],
   "ocrText": "",
   "entities": {
     "materials": [],
@@ -299,8 +299,6 @@ export async function mergeAnalyses(
   const tags = unique([
     ...(visual?.tags || []),
     ...(audio?.entities.concepts || []),
-    ...(link ? ["link", "bookmark"] : []),
-    ...(document ? ["document", "file"] : []),
   ]);
   const objects = visual?.objects || [];
   const title =
@@ -464,16 +462,28 @@ function mockLinkAnalysis(
   const description =
     page.description ||
     `Web reference from ${host}${voice ? ` — ${voice.slice(0, 100)}` : ""}.`;
+  const topicTags = unique([
+    ...fromVoice.concepts,
+    ...fromVoice.materials,
+    ...(page.siteName && page.siteName.toLowerCase() !== host.toLowerCase()
+      ? [page.siteName]
+      : []),
+  ]).filter(
+    (t) =>
+      !["link", "bookmark", "reference", "web-reference", "architecture"].includes(
+        t.toLowerCase()
+      )
+  );
   return {
     title: title.slice(0, 120),
     description: description.slice(0, 400),
     objects: [],
-    tags: unique(["link", "bookmark", "reference", "architecture", host]),
+    tags: topicTags.slice(0, 6),
     ocrText: "",
     entities: {
       ...fromVoice,
       companies: unique([...fromVoice.companies, host]),
-      concepts: unique([...fromVoice.concepts, "web-reference"]),
+      concepts: fromVoice.concepts,
     },
     projectSuggested: fromVoice.projects[0],
   };
