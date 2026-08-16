@@ -60,6 +60,13 @@ export async function POST() {
 }
 
 export async function GET() {
-  // Alias not used — status lives at /api/billing/status
-  return NextResponse.json({ ok: true });
+  try {
+    await requireUser();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return NextResponse.json({
+    ok: true,
+    stripeConfigured: isStripeConfigured(),
+  });
 }

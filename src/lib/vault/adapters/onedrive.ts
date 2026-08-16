@@ -12,8 +12,10 @@ import {
 import { getVaultOAuthConfig } from "@/lib/vault/oauth-config";
 import {
   cleanOAuthParamsFromUrl,
+  loadPkcePending,
   pkceChallenge,
   randomString,
+  savePkcePending,
   vaultOAuthRedirectUri,
 } from "@/lib/vault/pkce";
 
@@ -48,11 +50,10 @@ export function createOneDriveAdapter(): VaultSyncAdapter {
       const params = new URLSearchParams(window.location.search);
       const code = params.get("code");
       const state = params.get("state");
-      const pending = sessionStorage.getItem(PKCE_KEY);
+      const pending = loadPkcePending(PKCE_KEY);
 
-      if (code && pending && state === "onedrive") {
-        const { verifier } = JSON.parse(pending) as { verifier: string };
-        const token = await exchangeCode(clientId, code, verifier);
+      if (code && pending && state === pending.state) {
+        const token = await exchangeCode(clientId, code, pending.verifier);
         await saveToken(token);
         sessionStorage.removeItem(PKCE_KEY);
         cleanOAuthParamsFromUrl();
@@ -74,10 +75,12 @@ export function createOneDriveAdapter(): VaultSyncAdapter {
 
       const verifier = randomString(64);
       const challenge = await pkceChallenge(verifier);
-      sessionStorage.setItem(
-        PKCE_KEY,
-        JSON.stringify({ verifier, startedAt: Date.now() })
-      );
+      const oauthState = `onedrive.${randomString(24)}`;
+      savePkcePending(PKCE_KEY, {
+        verifier,
+        state: oauthState,
+        startedAt: Date.now(),
+      });
       const auth = new URL(`${AUTH}/authorize`);
       auth.searchParams.set("client_id", clientId);
       auth.searchParams.set("response_type", "code");
@@ -86,7 +89,7 @@ export function createOneDriveAdapter(): VaultSyncAdapter {
       auth.searchParams.set("scope", SCOPES);
       auth.searchParams.set("code_challenge", challenge);
       auth.searchParams.set("code_challenge_method", "S256");
-      auth.searchParams.set("state", "onedrive");
+      auth.searchParams.set("state", oauthState);
       window.location.href = auth.toString();
       return new Promise(() => undefined);
     },
@@ -214,11 +217,9 @@ export function createOneDriveAdapter(): VaultSyncAdapter {
 export function oneDriveOAuthPending(): boolean {
   if (typeof window === "undefined") return false;
   const params = new URLSearchParams(window.location.search);
-  return Boolean(
-    params.get("code") &&
-      params.get("state") === "onedrive" &&
-      sessionStorage.getItem(PKCE_KEY)
-  );
+  const pending = loadPkcePending(PKCE_KEY);
+  const state = params.get("state");
+  return Boolean(params.get("code") && pending && state === pending.state);
 }
 
 async function resolveClientId(): Promise<string> {

@@ -16,7 +16,7 @@ const schema = z.object({
  * Offers the same recovery guidance every time.
  */
 export async function POST(req: NextRequest) {
-  const limited = rateLimit(clientKey(req, "forgot-login"), {
+  const limited = await rateLimit(clientKey(req, "forgot-login"), {
     limit: 10,
     windowMs: 15 * 60 * 1000,
   });

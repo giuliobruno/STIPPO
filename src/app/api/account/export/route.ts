@@ -1,12 +1,30 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { parseJsonArray, parseJsonObject } from "@/lib/utils";
+import {
+  clientKey,
+  rateLimit,
+  rateLimitHeaders,
+  tooManyRequests,
+} from "@/lib/rate-limit";
 
 /** GDPR-style data portability export (JSON). */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const limited = await rateLimit(clientKey(req, "account-export"), {
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!limited.ok) return tooManyRequests(limited);
+
   try {
     const sessionUser = await requireUser();
+    const perUser = await rateLimit(`account-export-user:${sessionUser.id}`, {
+      limit: 3,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!perUser.ok) return tooManyRequests(perUser);
+
     const user = await prisma.user.findUnique({
       where: { id: sessionUser.id },
       select: {
@@ -30,6 +48,7 @@ export async function GET() {
           },
         },
         memories: {
+          take: 5000,
           select: {
             id: true,
             title: true,
@@ -116,6 +135,7 @@ export async function GET() {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
         "Content-Disposition": `attachment; filename="visual-memory-export-${user.id}.json"`,
+        ...rateLimitHeaders(limited),
       },
     });
   } catch (err) {

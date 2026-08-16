@@ -5,43 +5,23 @@ import {
   GEO_LOCALE_COOKIE,
   localeFromCountry,
 } from "@/lib/geo-locale";
+import { clientIpFromHeaders, rateLimitSync } from "@/lib/rate-limit";
 
 /**
- * Global security headers + light edge rate damping for auth/AI abuse paths.
- * Detailed limits also run inside route handlers (Node runtime).
+ * Global security headers + light edge rate damping for auth/AI/share abuse paths.
+ * Detailed limits also run inside route handlers (Node + Upstash when configured).
  */
 
-const WINDOW_MS = 60_000;
-const edgeBuckets = new Map<string, { count: number; resetAt: number }>();
+function buildCsp(isProd: boolean): string {
+  // Next.js still needs 'unsafe-inline' for some runtime bootstrapping.
+  // Drop 'unsafe-eval' in production to harden against XSS gadget chains.
+  const scriptSrc = isProd
+    ? "script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com"
+    : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com";
 
-function edgeLimit(key: string, limit: number): boolean {
-  const now = Date.now();
-  let b = edgeBuckets.get(key);
-  if (!b || b.resetAt <= now) {
-    b = { count: 0, resetAt: now + WINDOW_MS };
-    edgeBuckets.set(key, b);
-  }
-  b.count += 1;
-  if (edgeBuckets.size > 5000) {
-    for (const [k, v] of edgeBuckets) {
-      if (v.resetAt <= now) edgeBuckets.delete(k);
-    }
-  }
-  return b.count <= limit;
-}
-
-function clientIp(req: NextRequest): string {
-  return (
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    req.headers.get("x-real-ip") ||
-    "unknown"
-  );
-}
-
-function buildCsp(): string {
   const directives = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com",
+    scriptSrc,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
@@ -60,19 +40,25 @@ function buildCsp(): string {
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const isProd = process.env.NODE_ENV === "production";
 
-  // Edge damping for high-risk write endpoints
   if (
     pathname.startsWith("/api/auth/register") ||
     pathname.startsWith("/api/auth/forgot-password") ||
     pathname.startsWith("/api/auth/forgot-login") ||
     pathname.startsWith("/api/auth/reset-password") ||
     pathname.startsWith("/api/auth/callback/credentials") ||
-    pathname.startsWith("/api/ai/")
+    pathname.startsWith("/api/ai/") ||
+    pathname === "/share" ||
+    pathname.startsWith("/api/account/export")
   ) {
-    const ip = clientIp(req);
-    const limit = pathname.startsWith("/api/ai/") ? 40 : 20;
-    if (!edgeLimit(`${pathname}:${ip}`, limit)) {
+    const ip = clientIpFromHeaders(req.headers);
+    const limit = pathname.startsWith("/api/ai/")
+      ? 40
+      : pathname === "/share"
+        ? 30
+        : 20;
+    if (!rateLimitSync(`${pathname}:${ip}`, { limit, windowMs: 60_000 }).ok) {
       return NextResponse.json(
         { error: "Too many requests. Please wait and try again." },
         { status: 429, headers: { "Retry-After": "60" } }
@@ -82,7 +68,6 @@ export function middleware(req: NextRequest) {
 
   const res = NextResponse.next();
 
-  // Suggest UI locale from edge country (IP geo). Client may still override.
   if (!req.cookies.get(GEO_LOCALE_COOKIE)?.value) {
     const country = countryFromHeaders(req.headers);
     if (country && country !== "XX" && country !== "T1") {
@@ -90,14 +75,13 @@ export function middleware(req: NextRequest) {
         path: "/",
         maxAge: 60 * 60 * 24 * 30,
         sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
+        secure: isProd,
       });
     }
   }
 
   const headers = res.headers;
-
-  headers.set("Content-Security-Policy", buildCsp());
+  headers.set("Content-Security-Policy", buildCsp(isProd));
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("X-Frame-Options", "DENY");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -106,11 +90,10 @@ export function middleware(req: NextRequest) {
     "camera=(self), microphone=(self), geolocation=(self), payment=(self), interest-cohort=()"
   );
   headers.set("X-DNS-Prefetch-Control", "on");
-  // allow-popups required for Google Identity Services / OAuth popups
   headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   headers.set("Cross-Origin-Resource-Policy", "same-site");
 
-  if (process.env.NODE_ENV === "production") {
+  if (isProd) {
     headers.set(
       "Strict-Transport-Security",
       "max-age=63072000; includeSubDomains; preload"
@@ -122,9 +105,6 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Apply to all routes except Next static assets and image optimizer.
-     */
     "/((?!_next/static|_next/image|favicon.ico|icons/|sw.js).*)",
   ],
 };

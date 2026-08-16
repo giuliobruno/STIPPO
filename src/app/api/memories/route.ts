@@ -6,9 +6,11 @@ import { processMemory } from "@/lib/ai/pipeline";
 import { parseJsonArray, parseJsonObject } from "@/lib/utils";
 import { isProPlan } from "@/lib/stripe";
 import { serverMediaUploadsEnabled } from "@/lib/env";
+import { assertAllowedUploadMime } from "@/lib/media/sniff";
+import { assertOwnedProjectId } from "@/lib/owned-project";
 
 const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
-const ALLOWED_UPLOAD_PREFIXES = ["image/", "audio/", "application/pdf"];
+const ALLOWED_UPLOAD_PREFIXES = ["image/", "audio/", "application/pdf"] as const;
 
 export async function GET(req: NextRequest) {
   try {
@@ -71,13 +73,6 @@ export async function POST(req: NextRequest) {
     // Pro-only: sync full-res original across devices
     const originalSyncEnabled = syncOriginal && isProPlan(dbUser);
 
-    if (!file && !transcript) {
-      return NextResponse.json(
-        { error: "Provide an image/file and/or a voice transcript." },
-        { status: 400 }
-      );
-    }
-
     if (file) {
       if (file.size > MAX_UPLOAD_BYTES) {
         return NextResponse.json(
@@ -85,37 +80,34 @@ export async function POST(req: NextRequest) {
           { status: 413 }
         );
       }
-      const mime = (file.type || "").toLowerCase();
-      if (
-        mime &&
-        !ALLOWED_UPLOAD_PREFIXES.some(
-          (p) => mime === p || (p.endsWith("/") && mime.startsWith(p))
-        )
-      ) {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      let mimeType: string;
+      try {
+        mimeType = assertAllowedUploadMime({
+          declaredMime: file.type || "",
+          bytes: buffer,
+          allowed: ALLOWED_UPLOAD_PREFIXES,
+        }).mime;
+      } catch (err) {
+        const status = (err as { status?: number })?.status || 415;
         return NextResponse.json(
-          { error: "Unsupported file type." },
-          { status: 415 }
+          { error: err instanceof Error ? err.message : "Unsupported file type." },
+          { status }
         );
       }
-    }
 
-    const storage = getStorage();
-    let originalKey = "";
-    let thumbnailKey: string | null = null;
-    let mimeType = "application/octet-stream";
-    let fileSize = 0;
-    let mediaType: "image" | "audio" | "document" = "image";
-    let imageBuffer: Buffer | undefined;
+      const ownedProjectId = await assertOwnedProjectId(user.id, projectId);
 
-    if (file) {
-      const buffer = Buffer.from(await file.arrayBuffer());
-      mimeType = file.type || "application/octet-stream";
-      fileSize = buffer.length;
-      mediaType = mimeType.startsWith("image/")
+      const storage = getStorage();
+      let originalKey = "";
+      let thumbnailKey: string | null = null;
+      let fileSize = buffer.length;
+      let mediaType: "image" | "audio" | "document" = mimeType.startsWith("image/")
         ? "image"
         : mimeType.startsWith("audio/")
           ? "audio"
           : "document";
+      let imageBuffer: Buffer | undefined = mediaType === "image" ? buffer : undefined;
 
       const stored = await storage.put(user.id, buffer, {
         filename: file.name || "capture",
@@ -123,79 +115,140 @@ export async function POST(req: NextRequest) {
         folder: "originals",
       });
       originalKey = stored.key;
-      if (mediaType === "image") imageBuffer = buffer;
-    } else if (voiceOnly && transcript) {
-      mediaType = "audio";
-      originalKey = `voice:${Date.now()}`;
-    }
 
-    // Hybrid Plan B: always store a lightweight thumbnail when provided
-    if (thumbFile && mediaType === "image") {
-      const thumbBuf = Buffer.from(await thumbFile.arrayBuffer());
-      const thumb = await storage.put(user.id, thumbBuf, {
-        filename: "thumb.jpg",
-        mimeType: "image/jpeg",
-        folder: "thumbnails",
+      // Hybrid Plan B: always store a lightweight thumbnail when provided
+      if (thumbFile && mediaType === "image") {
+        const thumbBuf = Buffer.from(await thumbFile.arrayBuffer());
+        const thumb = await storage.put(user.id, thumbBuf, {
+          filename: "thumb.jpg",
+          mimeType: "image/jpeg",
+          folder: "thumbnails",
+        });
+        thumbnailKey = thumb.key;
+      } else if (mediaType === "image" && originalKey) {
+        thumbnailKey = originalKey;
+      }
+
+      const locationLabel =
+        placeName ||
+        (latitude != null && longitude != null
+          ? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+          : null);
+
+      const memory = await prisma.memory.create({
+        data: {
+          userId: user.id,
+          title: "Processing…",
+          description: null,
+          mediaType,
+          originalKey,
+          thumbnailKey,
+          mimeType,
+          fileSize,
+          storageBackend: process.env.STORAGE_BACKEND || "local",
+          syncStatus: originalSyncEnabled ? "full_synced" : "indexed",
+          originalSyncEnabled,
+          rawVoiceNote: transcript || null,
+          projectId: ownedProjectId ?? null,
+          source,
+          sourceUrl,
+          sourceTitle,
+          clipRectJson,
+          latitude: latitude ?? undefined,
+          longitude: longitude ?? undefined,
+          placeName: locationLabel,
+          locationSource: locationSource || undefined,
+          location: locationLabel,
+          status: "processing",
+        },
       });
-      thumbnailKey = thumb.key;
-    } else if (mediaType === "image" && originalKey) {
-      thumbnailKey = originalKey;
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { memoryCount: { increment: 1 } },
+      });
+
+      const processed = await processMemory({
+        memoryId: memory.id,
+        userId: user.id,
+        imageBuffer,
+        imageMime: mimeType.startsWith("image/") ? mimeType : undefined,
+        voiceTranscript: transcript || undefined,
+        placeHint: locationLabel || undefined,
+      });
+
+      return NextResponse.json({
+        memory: serializeMemory(
+          { ...processed, project: null },
+          storage.getPublicUrl.bind(storage)
+        ),
+      });
     }
 
-    const locationLabel =
-      placeName ||
-      (latitude != null && longitude != null
-        ? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
-        : null);
+    // Voice-only path (no file)
+    {
+      const ownedProjectId = await assertOwnedProjectId(user.id, projectId);
+      if (!(voiceOnly && transcript)) {
+        return NextResponse.json(
+          { error: "Provide an image/file and/or a voice transcript." },
+          { status: 400 }
+        );
+      }
 
-    const memory = await prisma.memory.create({
-      data: {
+      const storage = getStorage();
+      const locationLabel =
+        placeName ||
+        (latitude != null && longitude != null
+          ? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+          : null);
+
+      const memory = await prisma.memory.create({
+        data: {
+          userId: user.id,
+          title: "Processing…",
+          description: null,
+          mediaType: "audio",
+          originalKey: `voice:${Date.now()}`,
+          thumbnailKey: null,
+          mimeType: "application/octet-stream",
+          fileSize: 0,
+          storageBackend: process.env.STORAGE_BACKEND || "local",
+          syncStatus: originalSyncEnabled ? "full_synced" : "indexed",
+          originalSyncEnabled,
+          rawVoiceNote: transcript || null,
+          projectId: ownedProjectId ?? null,
+          source,
+          sourceUrl,
+          sourceTitle,
+          clipRectJson,
+          latitude: latitude ?? undefined,
+          longitude: longitude ?? undefined,
+          placeName: locationLabel,
+          locationSource: locationSource || undefined,
+          location: locationLabel,
+          status: "processing",
+        },
+      });
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { memoryCount: { increment: 1 } },
+      });
+
+      const processed = await processMemory({
+        memoryId: memory.id,
         userId: user.id,
-        title: "Processing…",
-        description: null,
-        mediaType,
-        originalKey,
-        thumbnailKey,
-        mimeType,
-        fileSize,
-        storageBackend: process.env.STORAGE_BACKEND || "local",
-        syncStatus: originalSyncEnabled ? "full_synced" : "indexed",
-        originalSyncEnabled,
-        rawVoiceNote: transcript || null,
-        projectId,
-        source,
-        sourceUrl,
-        sourceTitle,
-        clipRectJson,
-        latitude: latitude ?? undefined,
-        longitude: longitude ?? undefined,
-        placeName: locationLabel,
-        locationSource: locationSource || undefined,
-        location: locationLabel,
-        status: "processing",
-      },
-    });
+        voiceTranscript: transcript || undefined,
+        placeHint: locationLabel || undefined,
+      });
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { memoryCount: { increment: 1 } },
-    });
-
-    const processed = await processMemory({
-      memoryId: memory.id,
-      userId: user.id,
-      imageBuffer,
-      imageMime: mimeType.startsWith("image/") ? mimeType : undefined,
-      voiceTranscript: transcript || undefined,
-      placeHint: locationLabel || undefined,
-    });
-
-    return NextResponse.json({
-      memory: serializeMemory(
-        { ...processed, project: null },
-        storage.getPublicUrl.bind(storage)
-      ),
-    });
+      return NextResponse.json({
+        memory: serializeMemory(
+          { ...processed, project: null },
+          storage.getPublicUrl.bind(storage)
+        ),
+      });
+    }
   } catch (err) {
     return handleErr(err);
   }

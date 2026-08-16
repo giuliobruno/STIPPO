@@ -27,3 +27,25 @@ export function cleanOAuthParamsFromUrl() {
   clean.searchParams.delete("error_description");
   window.history.replaceState({}, "", clean.pathname + clean.search);
 }
+
+export type OAuthPkcePending = {
+  verifier: string;
+  state: string;
+  startedAt: number;
+};
+
+export function savePkcePending(storageKey: string, pending: OAuthPkcePending) {
+  sessionStorage.setItem(storageKey, JSON.stringify(pending));
+}
+
+export function loadPkcePending(storageKey: string): OAuthPkcePending | null {
+  try {
+    const raw = sessionStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as OAuthPkcePending;
+    if (!parsed?.verifier || !parsed?.state) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}

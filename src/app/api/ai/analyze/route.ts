@@ -17,16 +17,17 @@ import {
   rateLimitHeaders,
   tooManyRequests,
 } from "@/lib/rate-limit";
+import { assertAllowedUploadMime } from "@/lib/media/sniff";
 
 export const runtime = "nodejs";
 
-const ALLOWED_IMAGE_TYPES = new Set([
+const ALLOWED_IMAGE_TYPES = [
   "image/jpeg",
   "image/jpg",
   "image/png",
   "image/webp",
   "image/gif",
-]);
+] as const;
 
 const MAX_DOC_ANALYZE_BYTES = 8 * 1024 * 1024;
 
@@ -38,11 +39,11 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
 
-    const limited = rateLimit(`ai-analyze:${user.id}`, {
+    const limited = await rateLimit(`ai-analyze:${user.id}`, {
       limit: 60,
       windowMs: 60 * 60 * 1000,
     });
-    const ipLimited = rateLimit(clientKey(req, "ai-analyze-ip"), {
+    const ipLimited = await rateLimit(clientKey(req, "ai-analyze-ip"), {
       limit: 120,
       windowMs: 60 * 60 * 1000,
     });
@@ -90,13 +91,6 @@ export async function POST(req: NextRequest) {
           { status: 413 }
         );
       }
-      const mime = (image.type || "").toLowerCase();
-      if (mime && !ALLOWED_IMAGE_TYPES.has(mime)) {
-        return NextResponse.json(
-          { error: "Unsupported image type. Use JPEG, PNG, WebP, or GIF." },
-          { status: 415 }
-        );
-      }
     }
 
     if (document && document.size > MAX_DOC_ANALYZE_BYTES) {
@@ -109,7 +103,25 @@ export async function POST(req: NextRequest) {
     let imageResult = null;
     if (image) {
       const buf = Buffer.from(await image.arrayBuffer());
-      const mime = image.type || "image/jpeg";
+      let mime: string;
+      try {
+        mime = assertAllowedUploadMime({
+          declaredMime: image.type || "",
+          bytes: buf,
+          allowed: ALLOWED_IMAGE_TYPES,
+        }).mime;
+      } catch (err) {
+        const status = (err as { status?: number })?.status || 415;
+        return NextResponse.json(
+          {
+            error:
+              err instanceof Error
+                ? err.message
+                : "Unsupported image type. Use JPEG, PNG, WebP, or GIF.",
+          },
+          { status }
+        );
+      }
       imageResult = await analyzeImage(buf.toString("base64"), mime, {
         voiceTranscript: transcript || undefined,
         projectHints,

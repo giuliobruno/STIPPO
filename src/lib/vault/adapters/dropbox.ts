@@ -11,8 +11,10 @@ import {
 import { getVaultOAuthConfig } from "@/lib/vault/oauth-config";
 import {
   cleanOAuthParamsFromUrl,
+  loadPkcePending,
   pkceChallenge,
   randomString,
+  savePkcePending,
   vaultOAuthRedirectUri,
 } from "@/lib/vault/pkce";
 
@@ -42,11 +44,10 @@ export function createDropboxAdapter(): VaultSyncAdapter {
       const params = new URLSearchParams(window.location.search);
       const code = params.get("code");
       const state = params.get("state");
-      const pending = sessionStorage.getItem(PKCE_KEY);
+      const pending = loadPkcePending(PKCE_KEY);
 
-      if (code && pending && (!state || state === "dropbox")) {
-        const { verifier } = JSON.parse(pending) as { verifier: string };
-        const token = await exchangeCode(appKey, code, verifier);
+      if (code && pending && state === pending.state) {
+        const token = await exchangeCode(appKey, code, pending.verifier);
         await saveToken(token);
         sessionStorage.removeItem(PKCE_KEY);
         cleanOAuthParamsFromUrl();
@@ -67,10 +68,12 @@ export function createDropboxAdapter(): VaultSyncAdapter {
 
       const verifier = randomString(64);
       const challenge = await pkceChallenge(verifier);
-      sessionStorage.setItem(
-        PKCE_KEY,
-        JSON.stringify({ verifier, startedAt: Date.now() })
-      );
+      const oauthState = `dropbox.${randomString(24)}`;
+      savePkcePending(PKCE_KEY, {
+        verifier,
+        state: oauthState,
+        startedAt: Date.now(),
+      });
       const auth = new URL("https://www.dropbox.com/oauth2/authorize");
       auth.searchParams.set("client_id", appKey);
       auth.searchParams.set("response_type", "code");
@@ -78,7 +81,7 @@ export function createDropboxAdapter(): VaultSyncAdapter {
       auth.searchParams.set("code_challenge", challenge);
       auth.searchParams.set("code_challenge_method", "S256");
       auth.searchParams.set("redirect_uri", vaultOAuthRedirectUri());
-      auth.searchParams.set("state", "dropbox");
+      auth.searchParams.set("state", oauthState);
       window.location.href = auth.toString();
       return new Promise(() => undefined);
     },
@@ -334,10 +337,7 @@ async function saveToken(token: TokenBundle) {
 export function dropboxOAuthPending(): boolean {
   if (typeof window === "undefined") return false;
   const params = new URLSearchParams(window.location.search);
+  const pending = loadPkcePending(PKCE_KEY);
   const state = params.get("state");
-  return Boolean(
-    params.get("code") &&
-      sessionStorage.getItem(PKCE_KEY) &&
-      (!state || state === "dropbox")
-  );
+  return Boolean(params.get("code") && pending && state === pending.state);
 }

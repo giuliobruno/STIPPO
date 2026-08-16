@@ -23,7 +23,7 @@ const GENERIC =
   "If an account exists for that email, you will receive reset instructions shortly.";
 
 export async function POST(req: NextRequest) {
-  const limited = rateLimit(clientKey(req, "forgot-password"), {
+  const limited = await rateLimit(clientKey(req, "forgot-password"), {
     limit: 5,
     windowMs: 15 * 60 * 1000,
   });

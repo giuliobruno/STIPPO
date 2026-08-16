@@ -83,7 +83,11 @@ const deleteSchema = z.object({
   confirmation: z.literal("DELETE"),
   email: z.string().email(),
   password: z.string().min(1).optional(),
+  /** OAuth-only accounts must re-authenticate within this window (seconds). */
+  acknowledgeReauth: z.boolean().optional(),
 });
+
+const REAUTH_WINDOW_SEC = 15 * 60;
 
 export async function DELETE(req: NextRequest) {
   try {
@@ -114,6 +118,23 @@ export async function DELETE(req: NextRequest) {
       const ok = await compare(body.password, user.passwordHash);
       if (!ok) {
         return NextResponse.json({ error: "Incorrect password." }, { status: 403 });
+      }
+    } else {
+      // OAuth-only: require a fresh authentication (authTime within window).
+      const authTime = sessionUser.authTime;
+      const now = Math.floor(Date.now() / 1000);
+      if (
+        typeof authTime !== "number" ||
+        now - authTime > REAUTH_WINDOW_SEC
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "For security, sign in again and delete within 15 minutes.",
+            code: "REAUTH_REQUIRED",
+          },
+          { status: 403 }
+        );
       }
     }
 

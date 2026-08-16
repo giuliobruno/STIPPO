@@ -23,6 +23,15 @@ const emptyEntities = (): MemoryEntities => ({
 
 function getClient(): OpenAI | null {
   // Prefer OpenRouter (multi-model gateway). Falls back to OpenAI direct.
+  // Request zero data retention where the provider supports it.
+  const retentionHeaders: Record<string, string> = {};
+  if (process.env.AI_ZERO_RETENTION !== "false") {
+    // OpenRouter / compatible gateways
+    retentionHeaders["X-Title"] = "Stippo";
+    // OpenAI ZDR org header (no-op if org isn't enrolled)
+    retentionHeaders["OpenAI-Data-Minimization"] = "true";
+  }
+
   const openRouterKey = process.env.OPENROUTER_API_KEY;
   if (openRouterKey) {
     return new OpenAI({
@@ -31,11 +40,15 @@ function getClient(): OpenAI | null {
       defaultHeaders: {
         "HTTP-Referer": process.env.NEXTAUTH_URL || "http://localhost:3000",
         "X-Title": "Stippo",
+        ...retentionHeaders,
       },
     });
   }
   if (process.env.OPENAI_API_KEY) {
-    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    return new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      defaultHeaders: retentionHeaders,
+    });
   }
   return null;
 }

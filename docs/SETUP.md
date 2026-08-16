@@ -192,6 +192,8 @@ OPENROUTER_API_KEY=...
 GOOGLE_CLIENT_ID=...
 DROPBOX_APP_KEY=...          # opzionale
 MSAL_CLIENT_ID=...           # opzionale OneDrive
+UPSTASH_REDIS_REST_URL=...   # consigliato per rate limit globale
+UPSTASH_REDIS_REST_TOKEN=...
 RESEND_API_KEY=re_...
 EMAIL_FROM=Stippo <noreply@stippo.app>
 EMAIL_REPLY_TO=hello@stippo.app
@@ -204,12 +206,16 @@ EMAIL_REPLY_TO=hello@stippo.app
 
 ### Sicurezza già nel codice
 
-- Security headers + CSP (`src/middleware.ts`)
-- Rate limit su auth / AI
-- Upload media server disabilitati in prod (vault BYOS)
-- Token Drive/Dropbox cifrati in IndexedDB
+- Security headers + CSP (`src/middleware.ts`) — `unsafe-eval` off in production
+- Rate limit su auth / AI / share / export (Upstash Redis se configurato, altrimenti memory)
+- Session invalidation via `User.sessionVersion` su reset/cambio password
+- Google Account tokens non persistiti (login identity only)
+- Upload media server disabilitati in prod (vault BYOS) + magic-byte sniff
+- Token Drive/Dropbox/OneDrive cifrati in IndexedDB (CryptoKey non-extractable quando possibile)
 - Reset password inline disabilitato in prod
 - Password: min 10 caratteri, lettera + numero, bcrypt cost 12
+- Link fetch SSRF-hardened (DNS public IP check + redirect hop validation)
+- `/api/health/mail` autenticato e disabilitato in prod di default
 
 ---
 

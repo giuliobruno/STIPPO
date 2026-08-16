@@ -14,7 +14,7 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const limited = rateLimit(clientKey(req, "verify-email"), {
+  const limited = await rateLimit(clientKey(req, "verify-email"), {
     limit: 20,
     windowMs: 15 * 60 * 1000,
   });
