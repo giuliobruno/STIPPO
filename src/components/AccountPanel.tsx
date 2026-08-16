@@ -285,7 +285,7 @@ export function AccountPanel() {
       <section className="vm-card space-y-3 p-6">
         <h3 className="font-[family-name:var(--font-serif)] text-xl">Work vault</h3>
         <p className="text-sm text-[var(--ink-muted)]">
-          Connect a folder on your computer (inside Drive, Dropbox, or OneDrive).
+          Connect a folder on your computer (inside Google Drive).
           Your cloud app syncs it live — Stippo never hosts the full-res files.
         </p>
         <Link href="/app/vault" className="vm-btn-secondary inline-flex">
