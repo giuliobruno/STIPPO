@@ -67,6 +67,9 @@ export async function searchMemories(opts: SearchOptions): Promise<SearchHit[]> 
       projectName: m.project?.name ?? null,
       score,
       createdAt: m.createdAt.toISOString(),
+      mediaType: m.mediaType as SearchHit["mediaType"],
+      sourceUrl: m.sourceUrl,
+      sourceTitle: m.sourceTitle,
     } satisfies SearchHit;
   });
 

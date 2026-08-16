@@ -56,6 +56,9 @@ export function searchVaultMemories(
         projectName: null as string | null,
         score,
         createdAt: m.createdAt,
+        mediaType: m.mediaType,
+        sourceUrl: m.sourceUrl,
+        sourceTitle: m.sourceTitle,
       };
     })
     .filter((h) => h.score > 0)

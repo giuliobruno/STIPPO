@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Mic, MicOff, Search } from "lucide-react";
 import { MemoryCard, type MemoryCardData } from "@/components/MemoryCard";
 
@@ -24,7 +23,6 @@ declare global {
 }
 
 export function SearchPanel() {
-  const router = useRouter();
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<MemoryCardData[]>([]);
   const [busy, setBusy] = useState(false);
@@ -62,6 +60,9 @@ export function SearchPanel() {
           tags: h.tags,
           projectName: h.projectName,
           createdAt: h.createdAt,
+          mediaType: h.mediaType,
+          sourceUrl: h.sourceUrl,
+          sourceTitle: h.sourceTitle,
         }))
       );
     } catch {
@@ -197,9 +198,7 @@ export function SearchPanel() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {hits.map((m) => (
-          <div key={m.id} onClick={() => router.push(`/app/memories/${m.id}`)}>
-            <MemoryCard memory={m} />
-          </div>
+          <MemoryCard key={m.id} memory={m} />
         ))}
       </div>
     </div>

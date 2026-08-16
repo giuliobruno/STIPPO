@@ -23,12 +23,11 @@ export function MemoryCard({ memory }: { memory: MemoryCardData }) {
     (!memory.imageUrl && Boolean(memory.sourceUrl) && memory.mediaType !== "document");
   const isDocument = memory.mediaType === "document";
   const host = hostnameFromUrl(memory.sourceUrl);
+  const openExternal = isLink && Boolean(memory.sourceUrl);
+  const className = "vm-card vm-card-interactive group block";
 
-  return (
-    <Link
-      href={`/app/memories/${memory.id}`}
-      className="vm-card vm-card-interactive group block"
-    >
+  const body = (
+    <>
       <div className="relative aspect-[4/3] overflow-hidden bg-[var(--paper-2)]">
         {memory.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -96,6 +95,25 @@ export function MemoryCard({ memory }: { memory: MemoryCardData }) {
           </div>
         ) : null}
       </div>
+    </>
+  );
+
+  if (openExternal && memory.sourceUrl) {
+    return (
+      <a
+        href={memory.sourceUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+      >
+        {body}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={`/app/memories/${memory.id}`} className={className}>
+      {body}
     </Link>
   );
 }

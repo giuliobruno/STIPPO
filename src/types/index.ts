@@ -100,4 +100,7 @@ export interface SearchHit {
   projectName: string | null;
   score: number;
   createdAt: string;
+  mediaType?: MediaType | null;
+  sourceUrl?: string | null;
+  sourceTitle?: string | null;
 }
