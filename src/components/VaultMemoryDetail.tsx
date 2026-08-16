@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Download, ExternalLink, FileText, Link2, Trash2 } from "lucide-react";
@@ -8,10 +8,11 @@ import {
   deleteVaultMemory,
   getVaultMemory,
   initVault,
+  updateVaultMemory,
 } from "@/lib/vault";
 import type { VaultMemory } from "@/lib/vault/types";
 import { processSyncQueue } from "@/lib/vault/sync";
-import { hostnameFromUrl } from "@/lib/media/url";
+import { hostnameFromUrl, normalizeHttpUrl } from "@/lib/media/url";
 import { formatBytes } from "@/lib/media/files";
 
 export function VaultMemoryDetail({ id }: { id: string }) {
@@ -19,18 +20,108 @@ export function VaultMemoryDetail({ id }: { id: string }) {
   const [memory, setMemory] = useState<VaultMemory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">(
+    "idle"
+  );
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const memoryRef = useRef<VaultMemory | null>(null);
+  memoryRef.current = memory;
 
   useEffect(() => {
     void initVault()
       .then(() => getVaultMemory(id))
       .then((m) => {
         if (!m) setError("Memory not found in local vault.");
-        else setMemory(m);
+        else {
+          setMemory(m);
+          setTitle(m.title);
+          setDescription(m.description ?? "");
+          setSourceUrl(m.sourceUrl ?? "");
+        }
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load")
       );
   }, [id]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, []);
+
+  async function persist(
+    patch: Partial<Pick<VaultMemory, "title" | "description" | "sourceUrl">>
+  ) {
+    const current = memoryRef.current;
+    if (!current) return;
+
+    const nextTitle = patch.title !== undefined ? patch.title : current.title;
+    const nextDescription =
+      patch.description !== undefined ? patch.description : current.description;
+    const nextSourceUrl =
+      patch.sourceUrl !== undefined ? patch.sourceUrl : current.sourceUrl;
+
+    const sameTitle = nextTitle === current.title;
+    const sameDescription = (nextDescription ?? null) === (current.description ?? null);
+    const sameUrl = (nextSourceUrl ?? null) === (current.sourceUrl ?? null);
+    if (sameTitle && sameDescription && sameUrl) return;
+
+    setSaveState("saving");
+    try {
+      const updated = await updateVaultMemory(current.id, {
+        title: nextTitle,
+        description: nextDescription,
+        sourceUrl: nextSourceUrl,
+      });
+      setMemory(updated);
+      setTitle(updated.title);
+      setDescription(updated.description ?? "");
+      setSourceUrl(updated.sourceUrl ?? "");
+      setSaveState("saved");
+      void processSyncQueue().catch(() => undefined);
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => setSaveState("idle"), 1600);
+    } catch (err) {
+      setSaveState("error");
+      setError(err instanceof Error ? err.message : "Save failed");
+    }
+  }
+
+  function onTitleBlur() {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setTitle(memory?.title ?? "");
+      return;
+    }
+    void persist({ title: trimmed });
+  }
+
+  function onDescriptionBlur() {
+    void persist({ description: description.trim() || null });
+  }
+
+  function onSourceUrlBlur() {
+    const raw = sourceUrl.trim();
+    if (!raw) {
+      setUrlError(null);
+      void persist({ sourceUrl: null });
+      return;
+    }
+    const normalized = normalizeHttpUrl(raw);
+    if (!normalized) {
+      setUrlError("Enter a valid http(s) URL");
+      setSourceUrl(memory?.sourceUrl ?? "");
+      return;
+    }
+    setUrlError(null);
+    setSourceUrl(normalized);
+    void persist({ sourceUrl: normalized });
+  }
 
   async function onDelete() {
     if (!confirm("Delete this reference from your vault?")) return;
@@ -61,7 +152,10 @@ export function VaultMemoryDetail({ id }: { id: string }) {
   }
 
   const mediaUrl = memory.localBlobUrl || memory.thumbBlobUrl;
-  const host = hostnameFromUrl(memory.sourceUrl);
+  const host = hostnameFromUrl(sourceUrl || memory.sourceUrl);
+  const showLinkEditor =
+    memory.mediaType === "link" || Boolean(memory.sourceUrl) || Boolean(sourceUrl);
+  const openableUrl = normalizeHttpUrl(sourceUrl) || memory.sourceUrl;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -69,15 +163,24 @@ export function VaultMemoryDetail({ id }: { id: string }) {
         <Link href="/app" className="vm-btn-ghost !px-0">
           <ArrowLeft className="h-4 w-4" /> Feed
         </Link>
-        <button
-          type="button"
-          className="vm-btn-secondary !text-[var(--danger)]"
-          disabled={busy}
-          onClick={() => void onDelete()}
-        >
-          <Trash2 className="h-4 w-4" />
-          Delete
-        </button>
+        <div className="flex items-center gap-3">
+          {saveState === "saving" ? (
+            <span className="text-[11px] text-[var(--ink-muted)]">Saving…</span>
+          ) : saveState === "saved" ? (
+            <span className="text-[11px] text-[var(--accent)]">Saved</span>
+          ) : saveState === "error" ? (
+            <span className="text-[11px] text-[var(--danger)]">Save failed</span>
+          ) : null}
+          <button
+            type="button"
+            className="vm-btn-secondary !text-[var(--danger)]"
+            disabled={busy}
+            onClick={() => void onDelete()}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </button>
+        </div>
       </div>
 
       {mediaUrl && memory.mediaType !== "document" ? (
@@ -115,9 +218,9 @@ export function VaultMemoryDetail({ id }: { id: string }) {
           ) : null}
         </div>
       ) : memory.mediaType === "link" ? (
-        memory.sourceUrl ? (
+        openableUrl ? (
           <a
-            href={memory.sourceUrl}
+            href={openableUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="vm-media-frame flex aspect-[16/9] w-full flex-col items-center justify-center gap-3 bg-[linear-gradient(155deg,var(--paper)_0%,var(--accent-soft)_55%,var(--paper-2)_100%)] px-6 text-center transition hover:brightness-[0.98]"
@@ -145,32 +248,77 @@ export function VaultMemoryDetail({ id }: { id: string }) {
         <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--ink-muted)]">
           {memory.mediaType} · {memory.syncState} · {memory.source}
         </p>
-        <h2 className="vm-page-title">{memory.title}</h2>
-        {memory.description ? (
-          <p className="leading-relaxed text-[var(--ink-muted)]">{memory.description}</p>
-        ) : null}
+        <textarea
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={onTitleBlur}
+          rows={1}
+          aria-label="Title"
+          placeholder="Title"
+          className="vm-page-title w-full resize-none border-0 bg-transparent p-0 leading-tight outline-none ring-0 placeholder:text-[var(--ink-muted)] focus:ring-0"
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = `${el.scrollHeight}px`;
+          }}
+          ref={(el) => {
+            if (el) {
+              el.style.height = "auto";
+              el.style.height = `${el.scrollHeight}px`;
+            }
+          }}
+        />
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          onBlur={onDescriptionBlur}
+          rows={2}
+          aria-label="Description"
+          placeholder="Add a note or description…"
+          className="w-full resize-y border-0 bg-transparent p-0 leading-relaxed text-[var(--ink-muted)] outline-none ring-0 placeholder:text-[var(--ink-muted)]/60 focus:ring-0"
+        />
         {memory.aiSummary ? (
           <p className="text-sm leading-relaxed text-[var(--ink)]">{memory.aiSummary}</p>
         ) : null}
       </div>
 
-      {memory.sourceUrl ? (
-        <a
-          href={memory.sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-start gap-3 rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)] transition hover:border-[var(--accent)]/35"
-        >
-          <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent)]" />
-          <div className="min-w-0">
-            <p className="vm-label mb-1">
-              {memory.sourceTitle || host || "Source"}
-            </p>
-            <p className="break-all text-sm text-[var(--accent)]">
-              {memory.sourceUrl}
-            </p>
+      {showLinkEditor ? (
+        <div className="rounded-[1.25rem] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)]">
+          <div className="flex items-start gap-3">
+            {openableUrl ? (
+              <a
+                href={openableUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-0.5 shrink-0 text-[var(--accent)] transition hover:opacity-80"
+                aria-label="Open link in new tab"
+                title="Open in new tab"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            ) : (
+              <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-[var(--ink-muted)]" />
+            )}
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="vm-label mb-1">{memory.sourceTitle || host || "Source"}</p>
+              <input
+                type="url"
+                value={sourceUrl}
+                onChange={(e) => {
+                  setSourceUrl(e.target.value);
+                  if (urlError) setUrlError(null);
+                }}
+                onBlur={onSourceUrlBlur}
+                aria-label="Link address"
+                placeholder="https://…"
+                className="w-full break-all border-0 bg-transparent p-0 text-sm text-[var(--accent)] outline-none ring-0 placeholder:text-[var(--ink-muted)] focus:ring-0"
+              />
+              {urlError ? (
+                <p className="text-xs text-[var(--danger)]">{urlError}</p>
+              ) : null}
+            </div>
           </div>
-        </a>
+        </div>
       ) : null}
 
       {memory.tags.length ? (
@@ -199,6 +347,9 @@ export function VaultMemoryDetail({ id }: { id: string }) {
 
       {memory.errorMessage ? (
         <p className="text-sm text-[var(--danger)]">{memory.errorMessage}</p>
+      ) : null}
+      {error && memory ? (
+        <p className="text-sm text-[var(--danger)]">{error}</p>
       ) : null}
     </div>
   );
