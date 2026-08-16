@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
   CheckCircle2,
   FolderOpen,
   Loader2,
   RefreshCw,
   Cloud,
+  Settings2,
 } from "lucide-react";
 import { getVaultMeta, initVault, updateVaultMeta } from "@/lib/vault";
 import {
@@ -22,7 +23,10 @@ import {
 import { dropboxOAuthPending } from "@/lib/vault/adapters/dropbox";
 import { oneDriveOAuthPending } from "@/lib/vault/adapters/onedrive";
 import {
+  clearVaultOAuthConfigCache,
   getVaultOAuthConfig,
+  saveVaultOAuthConfig,
+  type VaultOAuthConfig,
 } from "@/lib/vault/oauth-config";
 import type { CloudProviderId, VaultMeta } from "@/lib/vault/types";
 
@@ -33,14 +37,33 @@ export function VaultSetupPanel() {
   const [error, setError] = useState<string | null>(null);
   const [folderSupported, setFolderSupported] = useState(true);
   const [pathDraft, setPathDraft] = useState("");
+  const [oauth, setOauth] = useState<VaultOAuthConfig | null>(null);
+  const [showSetup, setShowSetup] = useState(false);
+  const [googleClientId, setGoogleClientId] = useState("");
+  const [dropboxAppKey, setDropboxAppKey] = useState("");
+  const [oneDriveClientId, setOneDriveClientId] = useState("");
+
+  async function reloadOauth() {
+    clearVaultOAuthConfigCache();
+    const cfg = await getVaultOAuthConfig();
+    setOauth(cfg);
+    if (!cfg.meta?.anyConfigured) setShowSetup(true);
+    return cfg;
+  }
 
   useEffect(() => {
     setFolderSupported(
       typeof window !== "undefined" && "showDirectoryPicker" in window
     );
 
-    // Warm OAuth client IDs cache (no UI gate — adapters fetch on connect).
-    void getVaultOAuthConfig().catch(() => undefined);
+    void reloadOauth().catch(() =>
+      setOauth({
+        googleDrive: null,
+        dropbox: null,
+        oneDrive: null,
+        meta: { anyConfigured: false, canConfigureInApp: true },
+      })
+    );
 
     void initVault().then(async () => {
       const m = await getVaultMeta();
@@ -77,6 +100,11 @@ export function VaultSetupPanel() {
   const connected =
     meta?.cloudProvider && meta.cloudProvider !== "none" ? meta : null;
 
+  const driveReady = Boolean(oauth?.googleDrive?.clientId);
+  const dropboxReady = Boolean(oauth?.dropbox?.appKey);
+  const oneDriveReady = Boolean(oauth?.oneDrive?.clientId);
+  const anyCloudReady = driveReady || dropboxReady || oneDriveReady;
+
   async function finishConnect(provider: CloudProviderId) {
     const location = await connectCloud(provider);
     if (provider === "local_folder") {
@@ -111,9 +139,54 @@ export function VaultSetupPanel() {
     setError(null);
     setMessage(null);
     try {
+      if (provider === "google_drive" && !driveReady) {
+        setShowSetup(true);
+        throw new Error(
+          "Google Drive non è ancora configurato. Incolla il Client ID qui sotto (una sola volta)."
+        );
+      }
+      if (provider === "onedrive" && !oneDriveReady) {
+        setShowSetup(true);
+        throw new Error(
+          "OneDrive non è ancora configurato. Incolla il Client ID qui sotto (una sola volta)."
+        );
+      }
+      if (provider === "dropbox" && !dropboxReady) {
+        setShowSetup(true);
+        throw new Error(
+          "Dropbox non è ancora configurato. Incolla l’App key qui sotto (una sola volta)."
+        );
+      }
       await finishConnect(provider);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Qualcosa non ha funzionato");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveOauthSetup(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const cfg = await saveVaultOAuthConfig({
+        googleClientId,
+        dropboxAppKey,
+        oneDriveClientId,
+      });
+      setOauth(cfg);
+      if (cfg.meta?.anyConfigured) {
+        setShowSetup(false);
+        setMessage(
+          "Cloud configurato. Ora puoi premere Google Drive, OneDrive o Dropbox."
+        );
+      } else {
+        setMessage("Salvato. Inserisci almeno un Client ID per attivare un cloud.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Salvataggio non riuscito");
     } finally {
       setBusy(false);
     }
@@ -291,6 +364,143 @@ export function VaultSetupPanel() {
         </div>
       ) : (
         <div className="space-y-4">
+          {!anyCloudReady || showSetup ? (
+            <div className="vm-card space-y-4 p-5">
+              <div className="flex items-start gap-2">
+                <Settings2 className="mt-0.5 h-5 w-5 shrink-0 text-[var(--ink-muted)]" />
+                <div>
+                  <p className="font-medium text-[var(--ink)]">
+                    Attiva i cloud (una sola volta)
+                  </p>
+                  <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                    Serve un Client ID pubblico dall’app OAuth. Gli utenti poi
+                    fanno solo login sul loro account. Puoi configurare anche
+                    solo Google Drive.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={saveOauthSetup} className="space-y-4">
+                <div>
+                  <label className="vm-label" htmlFor="google-client-id">
+                    Google Drive — Client ID
+                  </label>
+                  <input
+                    id="google-client-id"
+                    className="vm-input font-mono text-xs"
+                    value={googleClientId}
+                    onChange={(e) => setGoogleClientId(e.target.value)}
+                    placeholder="123456789-xxxx.apps.googleusercontent.com"
+                    spellCheck={false}
+                    disabled={Boolean(oauth?.meta?.lockedByEnv?.googleClientId)}
+                  />
+                  <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+                    1){" "}
+                    <a
+                      className="underline"
+                      href="https://console.cloud.google.com/apis/library/drive.googleapis.com"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Abilita Drive API
+                    </a>
+                    {" · "}
+                    2){" "}
+                    <a
+                      className="underline"
+                      href="https://console.cloud.google.com/apis/credentials"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Crea OAuth Client (Web)
+                    </a>
+                    {" · "}
+                    3) Origini JS autorizzate:{" "}
+                    <code className="text-[11px]">
+                      {typeof window !== "undefined"
+                        ? window.location.origin
+                        : "https://www.stippo.app"}
+                    </code>
+                  </p>
+                </div>
+
+                <div>
+                  <label className="vm-label" htmlFor="onedrive-client-id">
+                    OneDrive — Application (client) ID
+                  </label>
+                  <input
+                    id="onedrive-client-id"
+                    className="vm-input font-mono text-xs"
+                    value={oneDriveClientId}
+                    onChange={(e) => setOneDriveClientId(e.target.value)}
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    spellCheck={false}
+                    disabled={Boolean(oauth?.meta?.lockedByEnv?.oneDriveClientId)}
+                  />
+                  <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+                    Azure Portal → App registration (SPA) · Redirect URI:{" "}
+                    <code className="text-[11px]">
+                      {typeof window !== "undefined"
+                        ? `${window.location.origin}/app/vault`
+                        : "https://www.stippo.app/app/vault"}
+                    </code>
+                  </p>
+                </div>
+
+                <div>
+                  <label className="vm-label" htmlFor="dropbox-app-key">
+                    Dropbox — App key
+                  </label>
+                  <input
+                    id="dropbox-app-key"
+                    className="vm-input font-mono text-xs"
+                    value={dropboxAppKey}
+                    onChange={(e) => setDropboxAppKey(e.target.value)}
+                    placeholder="abcdefghijklmno"
+                    spellCheck={false}
+                    disabled={Boolean(oauth?.meta?.lockedByEnv?.dropboxAppKey)}
+                  />
+                  <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+                    <a
+                      className="underline"
+                      href="https://www.dropbox.com/developers/apps"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Dropbox App Console
+                    </a>
+                    {" · "}
+                    Redirect:{" "}
+                    <code className="text-[11px]">
+                      {typeof window !== "undefined"
+                        ? `${window.location.origin}/app/vault`
+                        : "https://www.stippo.app/app/vault"}
+                    </code>
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  className="vm-btn-primary w-full"
+                  disabled={busy}
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Salva e attiva
+                </button>
+
+                {anyCloudReady ? (
+                  <button
+                    type="button"
+                    className="vm-btn-ghost w-full"
+                    onClick={() => setShowSetup(false)}
+                  >
+                    Chiudi configurazione
+                  </button>
+                ) : null}
+              </form>
+            </div>
+          ) : null}
+
           <div className="vm-card space-y-4 p-5">
             <p className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--ink-muted)]">
               Passo 1 · Telefono o PC
@@ -302,7 +512,7 @@ export function VaultSetupPanel() {
             <button
               type="button"
               className="vm-btn-primary w-full !py-3.5 text-base"
-              disabled={busy}
+              disabled={busy || !driveReady}
               onClick={() => void connect("google_drive")}
             >
               <Cloud className="h-4 w-4" />
@@ -312,7 +522,7 @@ export function VaultSetupPanel() {
             <button
               type="button"
               className="vm-btn-secondary w-full"
-              disabled={busy}
+              disabled={busy || !oneDriveReady}
               onClick={() => void connect("onedrive")}
             >
               Usa OneDrive
@@ -321,25 +531,35 @@ export function VaultSetupPanel() {
             <button
               type="button"
               className="vm-btn-secondary w-full"
-              disabled={busy}
+              disabled={busy || !dropboxReady}
               onClick={() => void connect("dropbox")}
             >
               Usa Dropbox
             </button>
 
-            <p className="text-sm text-[var(--ink-muted)]">
-              Non ti chiediamo la password di Stippo sul cloud. Solo il permesso
-              di creare una cartella chiamata Stippo.
-            </p>
+            {anyCloudReady ? (
+              <button
+                type="button"
+                className="vm-btn-ghost w-full text-sm"
+                onClick={() => setShowSetup(true)}
+              >
+                Modifica Client ID cloud
+              </button>
+            ) : (
+              <p className="text-sm text-[var(--ink-muted)]">
+                Compila il riquadro sopra per attivare i pulsanti. Oppure usa la
+                cartella sul PC qui sotto.
+              </p>
+            )}
           </div>
 
           <div className="vm-card space-y-3 p-5">
             <p className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--ink-muted)]">
-              Solo se sei al computer
+              Sempre disponibile sul computer
             </p>
             <p className="text-sm text-[var(--ink-muted)]">
-              Alternativa: scegli una cartella già dentro Drive/OneDrive/Dropbox
-              sul PC (senza login cloud in Stippo).
+              Scegli una cartella già dentro Drive / OneDrive / Dropbox sul PC
+              (senza login cloud in Stippo). Funziona subito.
             </p>
             <button
               type="button"
@@ -356,7 +576,7 @@ export function VaultSetupPanel() {
             </button>
             {!folderSupported ? (
               <p className="text-xs text-[var(--ink-muted)]">
-                Sul telefono usa uno dei cloud qui sopra.
+                Sul telefono configura Google Drive qui sopra.
               </p>
             ) : null}
           </div>
@@ -377,7 +597,7 @@ export function VaultSetupPanel() {
       <div className="space-y-2 px-1 text-sm text-[var(--ink-muted)]">
         <p className="font-medium text-[var(--ink)]">In due parole</p>
         <p>
-          1. Colleghi il cloud una volta.
+          1. Configuri il cloud una volta (o scegli una cartella sul PC).
           <br />
           2. Fai le foto in Stippo.
           <br />

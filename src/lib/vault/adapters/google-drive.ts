@@ -328,7 +328,7 @@ async function requestAccessToken(): Promise<TokenBundle> {
   const clientId = cfg.googleDrive?.clientId;
   if (!clientId) {
     throw new Error(
-      "Google Drive non è configurato su questo server. Contatta chi gestisce Stippo."
+      "Google Drive non è configurato. Apri Dove salvare le foto e incolla il Client ID (una sola volta)."
     );
   }
 

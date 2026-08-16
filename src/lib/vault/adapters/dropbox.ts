@@ -226,7 +226,7 @@ async function resolveAppKey(): Promise<string> {
   const cfg = await getVaultOAuthConfig();
   if (!cfg.dropbox?.appKey) {
     throw new Error(
-      "Dropbox non è configurato su questo server. Contatta chi gestisce Stippo."
+      "Dropbox non è configurato. Apri Dove salvare le foto e incolla l’App key (una sola volta)."
     );
   }
   return cfg.dropbox.appKey;

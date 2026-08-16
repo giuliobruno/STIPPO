@@ -72,6 +72,14 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+/// Runtime app settings (public OAuth client IDs, feature flags, etc.)
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
 model Project {
   id          String   @id @default(cuid())
   userId      String

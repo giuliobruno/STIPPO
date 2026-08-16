@@ -226,7 +226,7 @@ async function resolveClientId(): Promise<string> {
   const cfg = await getVaultOAuthConfig();
   if (!cfg.oneDrive?.clientId) {
     throw new Error(
-      "OneDrive non è configurato su questo server. Contatta chi gestisce Stippo."
+      "OneDrive non è configurato. Apri Dove salvare le foto e incolla il Client ID (una sola volta)."
     );
   }
   return cfg.oneDrive.clientId;
