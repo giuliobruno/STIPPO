@@ -17,6 +17,8 @@ model User {
   image         String?
   plan          String    @default("free") // free | pro | team
   memoryCount   Int       @default(0)
+  /// Bumped on password reset/change to invalidate existing JWTs
+  sessionVersion Int      @default(0)
 
   // Stripe
   stripeCustomerId     String? @unique

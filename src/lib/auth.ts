@@ -21,12 +21,11 @@ function resolvePlan(dbUser: {
 }
 
 export const authOptions: NextAuthOptions = {
-  // Explicit secret — required in production; avoids opaque 500s when env is missing.
   secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-    updateAge: 24 * 60 * 60, // refresh claim daily
+    maxAge: 30 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
   },
   useSecureCookies: isProd,
   pages: {
@@ -49,7 +48,6 @@ export const authOptions: NextAuthOptions = {
         const ok = await verifyPassword(credentials.password, user.passwordHash);
         if (!ok) return null;
         if (!user.emailVerified) {
-          // Surfaced to the client as res.error === "EMAIL_NOT_VERIFIED"
           throw new Error("EMAIL_NOT_VERIFIED");
         }
         return {
@@ -85,9 +83,31 @@ export const authOptions: NextAuthOptions = {
               emailVerified: new Date(),
             },
           });
+        } else {
+          // Google proves email ownership: verify + clear any unverified password
+          // that an attacker may have planted before the real owner signed in.
+          const patch: {
+            emailVerified?: Date;
+            passwordHash?: null;
+            name?: string | null;
+            image?: string | null;
+          } = {};
+          if (!dbUser.emailVerified) {
+            patch.emailVerified = new Date();
+            if (dbUser.passwordHash) patch.passwordHash = null;
+          }
+          if (!dbUser.name && user.name) patch.name = user.name;
+          if (!dbUser.image && user.image) patch.image = user.image;
+          if (Object.keys(patch).length) {
+            dbUser = await prisma.user.update({
+              where: { id: dbUser.id },
+              data: patch,
+            });
+          }
         }
 
         if (account.providerAccountId) {
+          // Never persist Google access/refresh tokens — login identity only.
           await prisma.account.upsert({
             where: {
               provider_providerAccountId: {
@@ -100,27 +120,21 @@ export const authOptions: NextAuthOptions = {
               type: account.type,
               provider: "google",
               providerAccountId: account.providerAccountId,
-              access_token: account.access_token ?? null,
-              refresh_token: account.refresh_token ?? null,
-              expires_at: account.expires_at ?? null,
-              token_type: account.token_type ?? null,
+              access_token: null,
+              refresh_token: null,
+              expires_at: null,
+              token_type: null,
               scope: account.scope ?? null,
-              id_token: account.id_token ?? null,
-              session_state:
-                typeof account.session_state === "string"
-                  ? account.session_state
-                  : null,
+              id_token: null,
+              session_state: null,
             },
             update: {
-              access_token: account.access_token ?? null,
-              refresh_token: account.refresh_token ?? undefined,
-              expires_at: account.expires_at ?? null,
-              id_token: account.id_token ?? null,
+              access_token: null,
+              refresh_token: null,
+              expires_at: null,
+              id_token: null,
               scope: account.scope ?? null,
-              session_state:
-                typeof account.session_state === "string"
-                  ? account.session_state
-                  : null,
+              session_state: null,
             },
           });
         }
@@ -129,6 +143,7 @@ export const authOptions: NextAuthOptions = {
     },
     async jwt({ token, user, trigger }) {
       const { prisma } = await import("@/lib/prisma");
+
       if (user?.email) {
         const dbUser = await prisma.user.findUnique({
           where: { email: user.email.toLowerCase() },
@@ -136,21 +151,70 @@ export const authOptions: NextAuthOptions = {
         if (dbUser) {
           token.uid = dbUser.id;
           token.plan = resolvePlan(dbUser);
+          token.sessionVersion = dbUser.sessionVersion;
+          token.authTime = Math.floor(Date.now() / 1000);
         }
-      } else if (trigger === "update" && token.uid) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.uid as string },
-        });
-        if (dbUser) {
-          token.plan = resolvePlan(dbUser);
-        }
+        return token;
       }
+
+      if (!token.uid) return token;
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: token.uid as string },
+        select: {
+          id: true,
+          plan: true,
+          stripeStatus: true,
+          sessionVersion: true,
+        },
+      });
+
+      if (!dbUser) {
+        // User deleted — invalidate token
+        delete token.uid;
+        delete token.plan;
+        delete token.sessionVersion;
+        return token;
+      }
+
+      if (
+        typeof token.sessionVersion === "number" &&
+        token.sessionVersion !== dbUser.sessionVersion
+      ) {
+        delete token.uid;
+        delete token.plan;
+        delete token.sessionVersion;
+        return token;
+      }
+
+      // Always refresh plan from DB (billing can change anytime)
+      token.plan = resolvePlan(dbUser);
+      token.sessionVersion = dbUser.sessionVersion;
+
+      if (trigger === "update" && !token.authTime) {
+        token.authTime = Math.floor(Date.now() / 1000);
+      }
+
       return token;
     },
     async session({ session, token }) {
+      if (!token.uid) {
+        return {
+          ...session,
+          user: {
+            id: "",
+            email: null,
+            name: null,
+            image: null,
+            plan: "free",
+          },
+        };
+      }
       if (session.user) {
         session.user.id = token.uid as string;
         session.user.plan = (token.plan as string) || "free";
+        session.user.authTime =
+          typeof token.authTime === "number" ? token.authTime : undefined;
       }
       return session;
     },

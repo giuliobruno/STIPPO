@@ -25,7 +25,7 @@ DATABASE_URL="postgresql://user:pass@ep-xxx.eu-central-1.aws.neon.tech/stippo?ss
 ```bash
 cd C:\PROJECTS\STIPPO
 cp .env.example .env
-# Compila DATABASE_URL, NEXTAUTH_SECRET, OPENROUTER_API_KEY, NEXT_PUBLIC_GOOGLE_CLIENT_ID
+# Compila DATABASE_URL, NEXTAUTH_SECRET, OPENROUTER_API_KEY, GOOGLE_CLIENT_ID (vault Drive)
 pnpm install
 pnpm db:deploy
 pnpm dev
@@ -81,16 +81,41 @@ Non usare `NEXT_PUBLIC_`. Se leak → revoca e ricrea.
 
 Senza nessuna chiave AI l’app funziona in modalità mock.
 
-### C) Vault Google Drive — una volta sola (script)
+### C) Vault cloud — Google Drive / OneDrive / Dropbox
 
-```powershell
-pnpm setup:drive
+Metti nel `.env` i **Client ID pubblici** delle app OAuth (come ogni altra chiave di deploy).  
+Niente script: gli utenti in `/app/vault` vedono sempre i tre pulsanti e fanno login sul **loro** account.
+
+**Google Drive** (riusa lo stesso Client ID del login Google, se ce l’hai):
+
+1. Google Cloud Console → abilita **Google Drive API**
+2. Credenziali → OAuth client tipo **Web**
+3. Origini JS autorizzate: `http://localhost:3000` + URL di produzione
+4. In `.env`:
+
+```
+GOOGLE_CLIENT_ID=....apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=...   # solo se usi anche “Accedi con Google”
 ```
 
-Lo script apre le pagine Google, ti chiede il Client ID e lo scrive nel `.env`.  
-Poi: `pnpm dev` → `/app/vault` → **Usa il mio Google Drive**.
+**OneDrive** (Azure Portal → App registration, piattaforma **SPA**):
 
-Gli architetti non lanciano lo script: premono solo il pulsante e fanno login.
+```
+MSAL_CLIENT_ID=...
+```
+
+Redirect URI: `http://localhost:3000/app/vault` (+ produzione).  
+Permessi Graph: `Files.ReadWrite`, `User.Read`, `offline_access`.
+
+**Dropbox** (https://www.dropbox.com/developers/apps):
+
+```
+DROPBOX_APP_KEY=...
+```
+
+Redirect URI: `http://localhost:3000/app/vault` (+ produzione).
+
+I Client ID sono esposti al browser solo via `GET /api/vault/oauth-config` (nessun secret).
 
 ### D) Google login NextAuth (opzionale)
 
@@ -99,7 +124,7 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 ```
 
-Solo se vuoi “Sign in with Google” (non serve per la sync Drive del vault).
+Lo stesso `GOOGLE_CLIENT_ID` abilita anche la sync Drive del vault.
 
 ### E) Email — Resend (obbligatorio per signup + reset)
 
@@ -164,7 +189,11 @@ DATABASE_URL=postgresql://...
 NEXTAUTH_URL=https://www.stippo.app
 NEXTAUTH_SECRET=<random ≥32 chars>
 OPENROUTER_API_KEY=...
-NEXT_PUBLIC_GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_ID=...
+DROPBOX_APP_KEY=...          # opzionale
+MSAL_CLIENT_ID=...           # opzionale OneDrive
+UPSTASH_REDIS_REST_URL=...   # consigliato per rate limit globale
+UPSTASH_REDIS_REST_TOKEN=...
 RESEND_API_KEY=re_...
 EMAIL_FROM=Stippo <noreply@stippo.app>
 EMAIL_REPLY_TO=hello@stippo.app
@@ -177,12 +206,16 @@ EMAIL_REPLY_TO=hello@stippo.app
 
 ### Sicurezza già nel codice
 
-- Security headers + CSP (`src/middleware.ts`)
-- Rate limit su auth / AI
-- Upload media server disabilitati in prod (vault BYOS)
-- Token Drive/Dropbox cifrati in IndexedDB
+- Security headers + CSP (`src/middleware.ts`) — `unsafe-eval` off in production
+- Rate limit su auth / AI / share / export (Upstash Redis se configurato, altrimenti memory)
+- Session invalidation via `User.sessionVersion` su reset/cambio password
+- Google Account tokens non persistiti (login identity only)
+- Upload media server disabilitati in prod (vault BYOS) + magic-byte sniff
+- Token Drive/Dropbox/OneDrive cifrati in IndexedDB (CryptoKey non-extractable quando possibile)
 - Reset password inline disabilitato in prod
 - Password: min 10 caratteri, lettera + numero, bcrypt cost 12
+- Link fetch SSRF-hardened (DNS public IP check + redirect hop validation)
+- `/api/health/mail` autenticato e disabilitato in prod di default
 
 ---
 
@@ -212,7 +245,7 @@ EMAIL_REPLY_TO=hello@stippo.app
 - [ ] `NEXTAUTH_SECRET` impostato (≥32 caratteri in prod)  
 - [ ] `pnpm db:deploy` ok  
 - [ ] `OPENROUTER_API_KEY` o `OPENAI_API_KEY`  
-- [ ] `NEXT_PUBLIC_GOOGLE_CLIENT_ID` + Drive API abilitata  
+- [ ] `GOOGLE_CLIENT_ID` + Drive API abilitata (e/o `MSAL_CLIENT_ID` / `DROPBOX_APP_KEY`)  
 - [ ] `pnpm dev` → signup → vault → capture → search  
 - [ ] (Prod) Vercel + env + OAuth origins  
 - [ ] (Prod) `RESEND_API_KEY` + `EMAIL_FROM`  

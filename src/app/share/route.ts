@@ -1,5 +1,13 @@
 import { CLIP_MESSAGE_TYPE } from "@/lib/media/clip-bridge";
 import { extractUrl } from "@/lib/media/url";
+import { getOptionalUser } from "@/lib/session";
+import {
+  clientKey,
+  rateLimit,
+  rateLimitHeaders,
+  tooManyRequests,
+} from "@/lib/rate-limit";
+import { assertAllowedUploadMime } from "@/lib/media/sniff";
 
 export const runtime = "nodejs";
 
@@ -12,6 +20,23 @@ const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
  * to Capture via IndexedDB so the user can crop and annotate.
  */
 export async function POST(req: Request) {
+  const limited = await rateLimit(clientKey(req, "share-target"), {
+    limit: 40,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!limited.ok) return tooManyRequests(limited);
+
+  // Prefer authenticated share when a session cookie is present (PWA).
+  // Anonymous share still works for OS share-sheet cold starts, but is rate-limited harder.
+  const user = await getOptionalUser();
+  if (!user) {
+    const anon = await rateLimit(clientKey(req, "share-target-anon"), {
+      limit: 15,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!anon.ok) return tooManyRequests(anon);
+  }
+
   const form = await req.formData();
   const title = String(form.get("title") || "").trim().slice(0, 200);
   const text = String(form.get("text") || form.get("note") || "").trim().slice(0, 2000);
@@ -26,14 +51,32 @@ export async function POST(req: Request) {
         `Shared file is too large (max ${Math.round(max / (1024 * 1024))}MB).`,
         {
           status: 413,
-          headers: { "Content-Type": "text/plain; charset=utf-8" },
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            ...Object.fromEntries(
+              Object.entries(rateLimitHeaders(limited)).map(([k, v]) => [k, String(v)])
+            ),
+          },
         }
       );
     }
 
     const bytes = Buffer.from(await file.arrayBuffer());
-    const mime = file.type || "image/png";
-    // Chunk base64 into the page without keeping an extra string copy longer than needed
+    try {
+      assertAllowedUploadMime({
+        declaredMime: file.type || "",
+        bytes,
+        allowed: isVideo
+          ? ["video/webm", "video/mp4", "video/"]
+          : ["image/jpeg", "image/png", "image/gif", "image/webp", "image/"],
+      });
+    } catch (err) {
+      return new Response(
+        err instanceof Error ? err.message : "Unsupported file type.",
+        { status: 415, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+      );
+    }
+    const mime = file.type || (isVideo ? "video/mp4" : "image/png");
     const dataUrl = `data:${mime};base64,${bytes.toString("base64")}`;
 
     return htmlHandoff({

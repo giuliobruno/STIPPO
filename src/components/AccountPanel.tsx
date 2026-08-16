@@ -99,7 +99,8 @@ export function AccountPanel() {
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
-    setMessage("Password changed.");
+    setMessage("Password changed. Sign in again with your new password.");
+    await signOut({ callbackUrl: "/login?passwordChanged=1" });
   }
 
   async function exportData() {
@@ -151,6 +152,12 @@ export function AccountPanel() {
     const data = await res.json();
     setBusy(false);
     if (!res.ok) {
+      if (data.code === "REAUTH_REQUIRED") {
+        setError(
+          "For security, sign in again, then delete within 15 minutes."
+        );
+        return;
+      }
       setError(data.error || "Account deletion failed.");
       return;
     }
@@ -376,8 +383,11 @@ export function AccountPanel() {
               Final check — do you really want to erase everything?
             </p>
             <p className="text-sm text-[var(--ink-muted)]">
-              Type your email, your password{account?.hasPassword ? "" : " (if any)"}, and
-              the word <strong>DELETE</strong> to proceed.
+              Type your email
+              {account?.hasPassword
+                ? ", your password,"
+                : " (OAuth accounts must have signed in within the last 15 minutes),"}{" "}
+              and the word <strong>DELETE</strong> to proceed.
             </p>
             <div>
               <label className="vm-label" htmlFor="delete-email">

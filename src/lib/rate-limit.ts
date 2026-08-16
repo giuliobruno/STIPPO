@@ -1,66 +1,71 @@
 /**
- * Lightweight in-memory rate limiter (per isolate).
- * Good enough for single-region Vercel + abuse damping; not a global cluster store.
+ * Rate limiter: Upstash Redis when configured, else in-memory per isolate.
+ * Prefer UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN in production.
+ * Node.js route handlers only — middleware uses rate-limit-edge.ts.
  */
 
-type Bucket = { count: number; resetAt: number };
+import { Redis } from "@upstash/redis";
+import {
+  clientIpFromHeaders,
+  rateLimitSync,
+  type RateLimitResult,
+} from "@/lib/rate-limit-edge";
 
-const buckets = new Map<string, Bucket>();
+export type { RateLimitResult };
+export { clientIpFromHeaders, rateLimitSync };
 
-const MAX_KEYS = 10_000;
+let redis: Redis | null | undefined;
 
-export type RateLimitResult = {
-  ok: boolean;
-  remaining: number;
-  resetAt: number;
-  limit: number;
-};
+function getRedis(): Redis | null {
+  if (redis !== undefined) return redis;
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  if (url && token) {
+    redis = new Redis({ url, token });
+  } else {
+    redis = null;
+  }
+  return redis;
+}
 
-export function rateLimit(
+async function redisLimit(
+  client: Redis,
   key: string,
   opts: { limit: number; windowMs: number }
-): RateLimitResult {
-  const now = Date.now();
-  let bucket = buckets.get(key);
-
-  if (!bucket || bucket.resetAt <= now) {
-    bucket = { count: 0, resetAt: now + opts.windowMs };
-    buckets.set(key, bucket);
-    pruneIfNeeded(now);
+): Promise<RateLimitResult> {
+  const redisKey = `rl:${key}`;
+  const count = await client.incr(redisKey);
+  if (count === 1) {
+    await client.pexpire(redisKey, opts.windowMs);
   }
-
-  bucket.count += 1;
-  const remaining = Math.max(0, opts.limit - bucket.count);
+  const pttl = await client.pttl(redisKey);
+  const resetAt = Date.now() + (pttl > 0 ? pttl : opts.windowMs);
   return {
-    ok: bucket.count <= opts.limit,
-    remaining,
-    resetAt: bucket.resetAt,
+    ok: count <= opts.limit,
+    remaining: Math.max(0, opts.limit - count),
+    resetAt,
     limit: opts.limit,
   };
 }
 
-function pruneIfNeeded(now: number) {
-  if (buckets.size < MAX_KEYS) return;
-  for (const [k, v] of buckets) {
-    if (v.resetAt <= now) buckets.delete(k);
-  }
-  if (buckets.size >= MAX_KEYS) {
-    // Drop oldest half if still full (pathological traffic).
-    let i = 0;
-    for (const k of buckets.keys()) {
-      buckets.delete(k);
-      if (++i > MAX_KEYS / 2) break;
+/** Async rate limit — use in route handlers. */
+export async function rateLimit(
+  key: string,
+  opts: { limit: number; windowMs: number }
+): Promise<RateLimitResult> {
+  const client = getRedis();
+  if (client) {
+    try {
+      return await redisLimit(client, key, opts);
+    } catch (err) {
+      console.error("[rate-limit] Upstash error, falling back to memory", err);
     }
   }
+  return rateLimitSync(key, opts);
 }
 
 export function clientKey(req: Request, suffix: string): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  const ip =
-    forwarded?.split(",")[0]?.trim() ||
-    req.headers.get("x-real-ip") ||
-    "unknown";
-  return `${suffix}:${ip}`;
+  return `${suffix}:${clientIpFromHeaders(req.headers)}`;
 }
 
 export function rateLimitHeaders(result: RateLimitResult): HeadersInit {
@@ -68,7 +73,9 @@ export function rateLimitHeaders(result: RateLimitResult): HeadersInit {
     "X-RateLimit-Limit": String(result.limit),
     "X-RateLimit-Remaining": String(result.remaining),
     "X-RateLimit-Reset": String(Math.ceil(result.resetAt / 1000)),
-    "Retry-After": String(Math.max(1, Math.ceil((result.resetAt - Date.now()) / 1000))),
+    "Retry-After": String(
+      Math.max(1, Math.ceil((result.resetAt - Date.now()) / 1000))
+    ),
   };
 }
 

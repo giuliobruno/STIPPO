@@ -14,8 +14,7 @@
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "cap:sync": "npx cap sync",
-    "cap:android": "npx cap open android",
-    "setup:drive": "node scripts/setup-google-drive.mjs"
+    "cap:android": "npx cap open android"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
@@ -27,6 +26,7 @@
     "@capacitor/network": "^8.0.1",
     "@capacitor/share": "^8.0.1",
     "@prisma/client": "5.22.0",
+    "@upstash/redis": "^1.38.2",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",

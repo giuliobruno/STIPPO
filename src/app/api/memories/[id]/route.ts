@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getStorage } from "@/lib/storage";
 import { requireUser } from "@/lib/session";
 import { parseJsonArray, parseJsonObject } from "@/lib/utils";
+import { assertOwnedProjectId } from "@/lib/owned-project";
 import { z } from "zod";
 
 type Ctx = { params: { id: string } };
@@ -81,13 +82,15 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const ownedProjectId = await assertOwnedProjectId(user.id, body.projectId);
+
     const updated = await prisma.memory.update({
       where: { id: params.id },
       data: {
         title: body.title,
         description: body.description,
         tagsJson: body.tags ? JSON.stringify(body.tags) : undefined,
-        projectId: body.projectId === undefined ? undefined : body.projectId,
+        projectId: ownedProjectId === undefined ? undefined : ownedProjectId,
         transcript: body.transcript,
       },
     });
@@ -115,6 +118,9 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
     const storage = getStorage();
     if (memory.originalKey && !memory.originalKey.startsWith("voice:")) {
       await storage.delete(memory.originalKey);
+    }
+    if (memory.thumbnailKey && memory.thumbnailKey !== memory.originalKey) {
+      await storage.delete(memory.thumbnailKey);
     }
     if (memory.audioKey) await storage.delete(memory.audioKey);
 

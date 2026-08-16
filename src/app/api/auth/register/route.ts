@@ -14,6 +14,7 @@ import {
   rateLimit,
   rateLimitHeaders,
   tooManyRequests,
+  type RateLimitResult,
 } from "@/lib/rate-limit";
 
 const schema = z.object({
@@ -22,11 +23,26 @@ const schema = z.object({
   password: passwordSchema,
 });
 
-const GENERIC_CONFLICT =
-  "Unable to create this account. Try signing in, or use a different email.";
+/** Same shape for new + existing emails — prevents account enumeration. */
+function genericRegisterOk(
+  email: string,
+  limited: RateLimitResult,
+  extra?: Record<string, unknown>
+) {
+  return NextResponse.json(
+    {
+      ok: true,
+      requiresVerification: true,
+      message: "Check your inbox to confirm your email before signing in.",
+      email,
+      ...extra,
+    },
+    { status: 201, headers: rateLimitHeaders(limited) }
+  );
+}
 
 export async function POST(req: Request) {
-  const limited = rateLimit(clientKey(req, "register"), {
+  const limited = await rateLimit(clientKey(req, "register"), {
     limit: 8,
     windowMs: 60 * 60 * 1000,
   });
@@ -51,10 +67,26 @@ export async function POST(req: Request) {
       where: { email },
     });
     if (existing) {
-      return NextResponse.json(
-        { error: GENERIC_CONFLICT },
-        { status: 409, headers: rateLimitHeaders(limited) }
-      );
+      // Anti-enumeration: identical success response; do not reveal the conflict.
+      // Optionally re-send verification if still unverified.
+      if (!existing.emailVerified && hasMailerConfigured()) {
+        try {
+          const { rawToken } = await createEmailVerificationToken(email);
+          const verifyUrl = absoluteUrl(`/verify-email?token=${rawToken}`);
+          const mail = emailVerificationEmail(verifyUrl, existing.name);
+          await sendMail({ to: email, ...mail });
+        } catch {
+          /* ignore */
+        }
+      }
+      if (isInlineRecoveryEnabled()) {
+        return genericRegisterOk(email, limited, {
+          message:
+            "If this email can be registered, check your inbox (or the inline link in local/dev).",
+          inline: true,
+        });
+      }
+      return genericRegisterOk(email, limited);
     }
 
     const passwordHash = await hashPassword(data.password);

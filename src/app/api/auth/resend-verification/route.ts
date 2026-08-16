@@ -23,7 +23,7 @@ const GENERIC =
   "If an unverified account exists for that email, we sent a new confirmation link.";
 
 export async function POST(req: NextRequest) {
-  const limited = rateLimit(clientKey(req, "resend-verification"), {
+  const limited = await rateLimit(clientKey(req, "resend-verification"), {
     limit: 5,
     windowMs: 15 * 60 * 1000,
   });

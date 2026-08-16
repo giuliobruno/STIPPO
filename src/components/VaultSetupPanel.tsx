@@ -20,6 +20,10 @@ import {
   setLocalFolderPath,
 } from "@/lib/vault/adapters/local-folder";
 import { dropboxOAuthPending } from "@/lib/vault/adapters/dropbox";
+import { oneDriveOAuthPending } from "@/lib/vault/adapters/onedrive";
+import {
+  getVaultOAuthConfig,
+} from "@/lib/vault/oauth-config";
 import type { CloudProviderId, VaultMeta } from "@/lib/vault/types";
 
 export function VaultSetupPanel() {
@@ -30,13 +34,13 @@ export function VaultSetupPanel() {
   const [folderSupported, setFolderSupported] = useState(true);
   const [pathDraft, setPathDraft] = useState("");
 
-  const driveReady = Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
-  const dropboxReady = Boolean(process.env.NEXT_PUBLIC_DROPBOX_APP_KEY);
-
   useEffect(() => {
     setFolderSupported(
       typeof window !== "undefined" && "showDirectoryPicker" in window
     );
+
+    // Warm OAuth client IDs cache (no UI gate — adapters fetch on connect).
+    void getVaultOAuthConfig().catch(() => undefined);
 
     void initVault().then(async () => {
       const m = await getVaultMeta();
@@ -44,6 +48,18 @@ export function VaultSetupPanel() {
       setPathDraft(
         m.cloudFolderPath || getLocalFolderPath() || m.cloudFolderName || ""
       );
+
+      if (oneDriveOAuthPending()) {
+        setBusy(true);
+        try {
+          await finishConnect("onedrive");
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "OneDrive non riuscito");
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
 
       if (dropboxOAuthPending()) {
         setBusy(true);
@@ -229,8 +245,8 @@ export function VaultSetupPanel() {
           ) : (
             <p className="text-sm text-[var(--ink-muted)]">
               Le foto vanno sul <strong>tuo</strong>{" "}
-              {connected.cloudProvider === "dropbox" ? "Dropbox" : "Google Drive"},
-              nella cartella Stippo. Non finiscono sul server di Stippo.
+              {providerShortName(connected.cloudProvider)}, nella cartella
+              Stippo. Non finiscono sul server di Stippo.
             </p>
           )}
 
@@ -275,62 +291,55 @@ export function VaultSetupPanel() {
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Step 1 — phone / primary */}
           <div className="vm-card space-y-4 p-5">
             <p className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--ink-muted)]">
               Passo 1 · Telefono o PC
             </p>
             <p className="text-base text-[var(--ink)]">
-              Premi il pulsante. Si apre Google. Entri col <strong>tuo</strong>{" "}
-              Gmail. Fine.
+              Scegli il tuo cloud. Entri col <strong>tuo</strong> account. Fine.
             </p>
 
             <button
               type="button"
               className="vm-btn-primary w-full !py-3.5 text-base"
-              disabled={busy || !driveReady}
+              disabled={busy}
               onClick={() => void connect("google_drive")}
             >
               <Cloud className="h-4 w-4" />
-              Usa il mio Google Drive
+              Usa Google Drive
             </button>
 
-            {!driveReady ? (
-              <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                Prima l’amministratore di Stippo deve configurare Google (una
-                sola volta). Poi questo pulsante si attiva.
-                <br />
-                <span className="text-xs">
-                  Script: <code>pnpm setup:drive</code>
-                </span>
-              </p>
-            ) : (
-              <p className="text-sm text-[var(--ink-muted)]">
-                Non ti chiediamo password di Stippo sul Drive. Solo il permesso
-                di creare una cartella chiamata Stippo.
-              </p>
-            )}
+            <button
+              type="button"
+              className="vm-btn-secondary w-full"
+              disabled={busy}
+              onClick={() => void connect("onedrive")}
+            >
+              Usa OneDrive
+            </button>
 
-            {dropboxReady ? (
-              <button
-                type="button"
-                className="vm-btn-secondary w-full"
-                disabled={busy}
-                onClick={() => void connect("dropbox")}
-              >
-                Oppure usa Dropbox
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className="vm-btn-secondary w-full"
+              disabled={busy}
+              onClick={() => void connect("dropbox")}
+            >
+              Usa Dropbox
+            </button>
+
+            <p className="text-sm text-[var(--ink-muted)]">
+              Non ti chiediamo la password di Stippo sul cloud. Solo il permesso
+              di creare una cartella chiamata Stippo.
+            </p>
           </div>
 
-          {/* Step 2 — desktop optional */}
           <div className="vm-card space-y-3 p-5">
             <p className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--ink-muted)]">
               Solo se sei al computer
             </p>
             <p className="text-sm text-[var(--ink-muted)]">
-              Alternativa: scegli una cartella già dentro Drive/Dropbox sul PC
-              (senza login Google in Stippo).
+              Alternativa: scegli una cartella già dentro Drive/OneDrive/Dropbox
+              sul PC (senza login cloud in Stippo).
             </p>
             <button
               type="button"
@@ -347,7 +356,7 @@ export function VaultSetupPanel() {
             </button>
             {!folderSupported ? (
               <p className="text-xs text-[var(--ink-muted)]">
-                Sul telefono usa Google Drive qui sopra.
+                Sul telefono usa uno dei cloud qui sopra.
               </p>
             ) : null}
           </div>
@@ -368,11 +377,11 @@ export function VaultSetupPanel() {
       <div className="space-y-2 px-1 text-sm text-[var(--ink-muted)]">
         <p className="font-medium text-[var(--ink)]">In due parole</p>
         <p>
-          1. Colleghi Drive una volta.
+          1. Colleghi il cloud una volta.
           <br />
           2. Fai le foto in Stippo.
           <br />
-          3. Le ritrovi sul tuo Drive (e sul PC se hai Drive installato).
+          3. Le ritrovi sul tuo Drive / OneDrive / Dropbox.
         </p>
       </div>
     </div>
@@ -391,5 +400,16 @@ function providerLabel(id: string): string {
       return "OneDrive";
     default:
       return id;
+  }
+}
+
+function providerShortName(id: string): string {
+  switch (id) {
+    case "dropbox":
+      return "Dropbox";
+    case "onedrive":
+      return "OneDrive";
+    default:
+      return "Google Drive";
   }
 }

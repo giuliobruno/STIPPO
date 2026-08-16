@@ -8,6 +8,15 @@ import {
   secureRemove,
   secureSet,
 } from "@/lib/vault/secure-store";
+import { getVaultOAuthConfig } from "@/lib/vault/oauth-config";
+import {
+  cleanOAuthParamsFromUrl,
+  loadPkcePending,
+  pkceChallenge,
+  randomString,
+  savePkcePending,
+  vaultOAuthRedirectUri,
+} from "@/lib/vault/pkce";
 
 const TOKEN_KEY = "stippo_dropbox_token";
 const FOLDER_KEY = "stippo_dropbox_folder";
@@ -23,8 +32,7 @@ type TokenBundle = {
 
 /**
  * Dropbox adapter — OAuth PKCE (no app secret in browser).
- * Requires NEXT_PUBLIC_DROPBOX_APP_KEY from Dropbox App Console.
- * Creates /Stippo under the linked Dropbox (or app folder root).
+ * App key comes from /api/vault/oauth-config (DROPBOX_APP_KEY on the server).
  */
 export function createDropboxAdapter(): VaultSyncAdapter {
   return {
@@ -32,28 +40,17 @@ export function createDropboxAdapter(): VaultSyncAdapter {
     label: "Dropbox",
 
     async connect(): Promise<VaultLocation> {
-      const appKey = process.env.NEXT_PUBLIC_DROPBOX_APP_KEY;
-      if (!appKey) {
-        throw new Error(
-          "Set NEXT_PUBLIC_DROPBOX_APP_KEY in .env. Create an app at https://www.dropbox.com/developers/apps (Scoped access)."
-        );
-      }
-
-      // Completing redirect OAuth?
+      const appKey = await resolveAppKey();
       const params = new URLSearchParams(window.location.search);
       const code = params.get("code");
-      const pending = sessionStorage.getItem(PKCE_KEY);
+      const state = params.get("state");
+      const pending = loadPkcePending(PKCE_KEY);
 
-      if (code && pending) {
-        const { verifier } = JSON.parse(pending) as { verifier: string };
-        const token = await exchangeCode(appKey, code, verifier);
+      if (code && pending && state === pending.state) {
+        const token = await exchangeCode(appKey, code, pending.verifier);
         await saveToken(token);
         sessionStorage.removeItem(PKCE_KEY);
-        // Clean URL
-        const clean = new URL(window.location.href);
-        clean.searchParams.delete("code");
-        clean.searchParams.delete("state");
-        window.history.replaceState({}, "", clean.pathname);
+        cleanOAuthParamsFromUrl();
         await ensureRoot(token.accessToken);
         await secureSet(FOLDER_KEY, { id: ROOT, name: "Stippo" });
         try {
@@ -69,23 +66,23 @@ export function createDropboxAdapter(): VaultSyncAdapter {
         };
       }
 
-      // Start OAuth
       const verifier = randomString(64);
       const challenge = await pkceChallenge(verifier);
-      sessionStorage.setItem(
-        PKCE_KEY,
-        JSON.stringify({ verifier, startedAt: Date.now() })
-      );
-      const redirectUri = `${window.location.origin}/app/vault`;
+      const oauthState = `dropbox.${randomString(24)}`;
+      savePkcePending(PKCE_KEY, {
+        verifier,
+        state: oauthState,
+        startedAt: Date.now(),
+      });
       const auth = new URL("https://www.dropbox.com/oauth2/authorize");
       auth.searchParams.set("client_id", appKey);
       auth.searchParams.set("response_type", "code");
       auth.searchParams.set("token_access_type", "offline");
       auth.searchParams.set("code_challenge", challenge);
       auth.searchParams.set("code_challenge_method", "S256");
-      auth.searchParams.set("redirect_uri", redirectUri);
+      auth.searchParams.set("redirect_uri", vaultOAuthRedirectUri());
+      auth.searchParams.set("state", oauthState);
       window.location.href = auth.toString();
-      // Never resolves while redirecting
       return new Promise(() => undefined);
     },
 
@@ -140,7 +137,11 @@ export function createDropboxAdapter(): VaultSyncAdapter {
         const err = await res.text();
         throw new Error(`Dropbox upload failed: ${res.status} ${err}`);
       }
-      const json = (await res.json()) as { id?: string; name: string; path_display?: string };
+      const json = (await res.json()) as {
+        id?: string;
+        name: string;
+        path_display?: string;
+      };
       return {
         id: json.id || path,
         name: json.name,
@@ -221,6 +222,16 @@ function dropboxPath(relativePath: string): string {
   return `${ROOT}/${cleaned}`.replace(/\/+/g, "/");
 }
 
+async function resolveAppKey(): Promise<string> {
+  const cfg = await getVaultOAuthConfig();
+  if (!cfg.dropbox?.appKey) {
+    throw new Error(
+      "Dropbox non è configurato su questo server. Contatta chi gestisce Stippo."
+    );
+  }
+  return cfg.dropbox.appKey;
+}
+
 async function ensureRoot(accessToken: string): Promise<void> {
   const res = await fetch(
     "https://api.dropboxapi.com/2/files/create_folder_v2",
@@ -233,7 +244,6 @@ async function ensureRoot(accessToken: string): Promise<void> {
       body: JSON.stringify({ path: ROOT, autorename: false }),
     }
   );
-  // 409 / path conflict = folder already exists
   if (!res.ok) {
     const body = await res.text();
     if (body.includes("conflict") || res.status === 409) return;
@@ -246,13 +256,12 @@ async function exchangeCode(
   code: string,
   verifier: string
 ): Promise<TokenBundle> {
-  const redirectUri = `${window.location.origin}/app/vault`;
   const body = new URLSearchParams({
     code,
     grant_type: "authorization_code",
     client_id: appKey,
     code_verifier: verifier,
-    redirect_uri: redirectUri,
+    redirect_uri: vaultOAuthRedirectUri(),
   });
   const res = await fetch("https://api.dropboxapi.com/oauth2/token", {
     method: "POST",
@@ -279,11 +288,10 @@ async function exchangeCode(
 
 async function getValidToken(): Promise<string> {
   const t = await loadToken();
-  if (!t) throw new Error("Dropbox not connected");
+  if (!t) throw new Error("Dropbox non collegato");
   if (t.expiresAt > Date.now() + 60_000) return t.accessToken;
-  if (!t.refreshToken) return t.accessToken; // hope still valid
-  const appKey = process.env.NEXT_PUBLIC_DROPBOX_APP_KEY;
-  if (!appKey) throw new Error("Dropbox app key missing");
+  if (!t.refreshToken) return t.accessToken;
+  const appKey = await resolveAppKey();
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: t.refreshToken,
@@ -294,7 +302,9 @@ async function getValidToken(): Promise<string> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });
-  if (!res.ok) throw new Error("Dropbox refresh failed — reconnect in Vault settings");
+  if (!res.ok) {
+    throw new Error("Dropbox refresh fallito — ricollega in Impostazioni vault");
+  }
   const json = (await res.json()) as {
     access_token: string;
     expires_in?: number;
@@ -323,25 +333,11 @@ async function saveToken(token: TokenBundle) {
   }
 }
 
-function randomString(length: number): string {
-  const chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
-  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
-}
-
-async function pkceChallenge(verifier: string): Promise<string> {
-  const data = new TextEncoder().encode(verifier);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return btoa(String.fromCharCode(...new Uint8Array(digest)))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
-
 /** Call from Vault page on load to finish OAuth redirect. */
 export function dropboxOAuthPending(): boolean {
   if (typeof window === "undefined") return false;
   const params = new URLSearchParams(window.location.search);
-  return Boolean(params.get("code") && sessionStorage.getItem(PKCE_KEY));
+  const pending = loadPkcePending(PKCE_KEY);
+  const state = params.get("state");
+  return Boolean(params.get("code") && pending && state === pending.state);
 }

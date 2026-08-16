@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { consumePasswordResetToken } from "@/lib/auth-recovery";
 import { hashPassword, passwordSchema } from "@/lib/password";
+import { bumpSessionVersion } from "@/lib/session-version";
 import {
   clientKey,
   rateLimit,
@@ -16,7 +17,7 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const limited = rateLimit(clientKey(req, "reset-password"), {
+  const limited = await rateLimit(clientKey(req, "reset-password"), {
     limit: 10,
     windowMs: 15 * 60 * 1000,
   });
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
       where: { id: user.id },
       data: { passwordHash },
     });
+    await bumpSessionVersion(user.id);
 
     return NextResponse.json(
       { ok: true },

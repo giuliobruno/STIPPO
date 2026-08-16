@@ -32,14 +32,14 @@ Segui la guida completa: **[`docs/SETUP.md`](docs/SETUP.md)** (cosa fare tu, pas
 
 ```bash
 cp .env.example .env
-# Set DATABASE_URL (Postgres), NEXTAUTH_SECRET, OPENROUTER_API_KEY, NEXT_PUBLIC_GOOGLE_CLIENT_ID
+# Set DATABASE_URL (Postgres), NEXTAUTH_SECRET, OPENROUTER_API_KEY, GOOGLE_CLIENT_ID
 pnpm install
 pnpm db:deploy
 pnpm dev
 ```
 
-1. Compila `.env` (Postgres + auth + AI + Drive client id)
-2. Signup → **/app/vault** → collega Drive
+1. Compila `.env` (Postgres + auth + AI + OAuth vault)
+2. Signup → **/app/vault** → collega Drive / OneDrive / Dropbox
 3. **/app/capture** → Photo/Video → Save
 4. Installa come PWA (Chrome → Install / Aggiungi a Home)
 
@@ -47,7 +47,7 @@ Produzione: **Vercel + Postgres + OpenRouter** — vedi [`docs/SETUP.md`](docs/S
 
 ### Chiavi sicure
 - `OPENAI_API_KEY` → **solo** `.env` server (mai `NEXT_PUBLIC_`)
-- `NEXT_PUBLIC_GOOGLE_CLIENT_ID` → pubblico (normale per OAuth browser)
+- `GOOGLE_CLIENT_ID` / `DROPBOX_APP_KEY` / `MSAL_CLIENT_ID` → Client ID pubblici (via `/api/vault/oauth-config`)
 - Non commitare `.env`
 
 Usa **pnpm** (come le altre app dello studio), non npm.

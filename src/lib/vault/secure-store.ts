@@ -1,13 +1,15 @@
 /**
  * Encrypted client secret store (AES-GCM + per-device key in IndexedDB).
- * Protects OAuth tokens at rest better than plaintext localStorage.
- * Note: same-origin XSS can still read IndexedDB — CSP is the primary XSS control.
+ * Prefers storing a non-extractable CryptoKey via structured clone.
+ * Falls back to JWK (imported non-extractable at runtime) on older browsers.
+ * Note: same-origin XSS can still use the key to decrypt — CSP is primary XSS control.
  */
 
 const DB_NAME = "stippo-secure";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = "kv";
 const DEVICE_KEY_ID = "__device_aes_key__";
+const DEVICE_KEY_RAW_ID = "__device_aes_key_jwk__"; // legacy
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -65,33 +67,92 @@ async function idbDel(key: string): Promise<void> {
   }
 }
 
+let cachedKey: CryptoKey | null = null;
+
 async function getDeviceKey(): Promise<CryptoKey> {
-  const existing = await idbGet<JsonWebKey>(DEVICE_KEY_ID);
-  if (existing) {
-    return crypto.subtle.importKey(
+  if (cachedKey) return cachedKey;
+
+  // Prefer non-extractable CryptoKey stored via structured clone
+  const storedKey = await idbGet<CryptoKey>(DEVICE_KEY_ID);
+  if (storedKey && typeof storedKey === "object" && "type" in storedKey) {
+    cachedKey = storedKey;
+    return storedKey;
+  }
+
+  // Migrate legacy JWK → non-extractable CryptoKey in IDB
+  const legacyJwk = await idbGet<JsonWebKey>(DEVICE_KEY_RAW_ID);
+  if (legacyJwk && typeof legacyJwk === "object" && "k" in legacyJwk) {
+    const imported = await crypto.subtle.importKey(
       "jwk",
-      existing,
+      legacyJwk,
       { name: "AES-GCM", length: 256 },
       false,
       ["encrypt", "decrypt"]
     );
+    try {
+      await idbSet(DEVICE_KEY_ID, imported);
+      await idbDel(DEVICE_KEY_RAW_ID);
+    } catch {
+      // structured clone of CryptoKey unsupported — keep JWK but use non-extractable runtime key
+    }
+    cachedKey = imported;
+    return imported;
+  }
+
+  // Also check old key id that stored JWK under DEVICE_KEY_ID
+  const maybeJwk = await idbGet<JsonWebKey | CryptoKey>(DEVICE_KEY_ID);
+  if (
+    maybeJwk &&
+    typeof maybeJwk === "object" &&
+    "k" in (maybeJwk as object) &&
+    !("type" in (maybeJwk as object) && (maybeJwk as CryptoKey).type === "secret")
+  ) {
+    const jwk = maybeJwk as JsonWebKey;
+    const imported = await crypto.subtle.importKey(
+      "jwk",
+      jwk,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+    try {
+      await idbSet(DEVICE_KEY_ID, imported);
+    } catch {
+      await idbSet(DEVICE_KEY_RAW_ID, jwk);
+    }
+    cachedKey = imported;
+    return imported;
   }
 
   const key = await crypto.subtle.generateKey(
     { name: "AES-GCM", length: 256 },
-    true,
+    false, // non-extractable when possible
     ["encrypt", "decrypt"]
   );
-  const exported = await crypto.subtle.exportKey("jwk", key);
-  await idbSet(DEVICE_KEY_ID, exported);
-  // Re-import non-extractable for runtime use
-  return crypto.subtle.importKey(
-    "jwk",
-    exported,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"]
-  );
+
+  try {
+    await idbSet(DEVICE_KEY_ID, key);
+    cachedKey = key;
+    return key;
+  } catch {
+    // Fallback: generate extractable, persist JWK, use non-extractable import
+    const extractable = await crypto.subtle.generateKey(
+      { name: "AES-GCM", length: 256 },
+      true,
+      ["encrypt", "decrypt"]
+    );
+    const exported = await crypto.subtle.exportKey("jwk", extractable);
+    await idbSet(DEVICE_KEY_RAW_ID, exported);
+    const runtime = await crypto.subtle.importKey(
+      "jwk",
+      exported,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+    cachedKey = runtime;
+    return runtime;
+  }
 }
 
 function b64encode(bytes: ArrayBuffer): string {
