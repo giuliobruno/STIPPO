@@ -315,11 +315,7 @@ export function VaultMemoryDetail({ id }: { id: string }) {
               />
               {urlError ? (
                 <p className="text-xs text-[var(--danger)]">{urlError}</p>
-              ) : (
-                <p className="text-[11px] text-[var(--ink-muted)]">
-                  Click to edit the address · icon opens in a new tab
-                </p>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
