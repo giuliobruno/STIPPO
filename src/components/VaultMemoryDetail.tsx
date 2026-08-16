@@ -115,14 +115,30 @@ export function VaultMemoryDetail({ id }: { id: string }) {
           ) : null}
         </div>
       ) : memory.mediaType === "link" ? (
-        <div className="vm-media-frame flex aspect-[16/9] w-full flex-col items-center justify-center gap-3 bg-[linear-gradient(155deg,var(--paper)_0%,var(--accent-soft)_55%,var(--paper-2)_100%)] px-6 text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--accent)] shadow-sm">
-            <Link2 className="h-6 w-6" />
-          </span>
-          <p className="font-[family-name:var(--font-serif)] text-2xl tracking-tight">
-            {host || "Link"}
-          </p>
-        </div>
+        memory.sourceUrl ? (
+          <a
+            href={memory.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="vm-media-frame flex aspect-[16/9] w-full flex-col items-center justify-center gap-3 bg-[linear-gradient(155deg,var(--paper)_0%,var(--accent-soft)_55%,var(--paper-2)_100%)] px-6 text-center transition hover:brightness-[0.98]"
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--accent)] shadow-sm">
+              <Link2 className="h-6 w-6" />
+            </span>
+            <p className="font-[family-name:var(--font-serif)] text-2xl tracking-tight">
+              {host || "Link"}
+            </p>
+          </a>
+        ) : (
+          <div className="vm-media-frame flex aspect-[16/9] w-full flex-col items-center justify-center gap-3 bg-[linear-gradient(155deg,var(--paper)_0%,var(--accent-soft)_55%,var(--paper-2)_100%)] px-6 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--accent)] shadow-sm">
+              <Link2 className="h-6 w-6" />
+            </span>
+            <p className="font-[family-name:var(--font-serif)] text-2xl tracking-tight">
+              {host || "Link"}
+            </p>
+          </div>
+        )
       ) : null}
 
       <div className="space-y-2">
